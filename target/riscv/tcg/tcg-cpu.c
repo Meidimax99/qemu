@@ -128,14 +128,17 @@ static void riscv_restore_state_to_opc(CPUState *cs,
     }
     env->bins = data[1];
 }
-
+//modhere glue
+//This is where the functions are assigned to the Virtual CPU
 static const TCGCPUOps riscv_tcg_ops = {
     .initialize = riscv_translate_init,
     .synchronize_from_tb = riscv_cpu_synchronize_from_tb,
     .restore_state_to_opc = riscv_restore_state_to_opc,
 
+//THIS is where I could add my own tlb fill function
 #ifndef CONFIG_USER_ONLY
-    .tlb_fill = riscv_cpu_tlb_fill,
+    //.tlb_fill = riscv_cpu_tlb_fill,
+    .tlb_fill = riscv_cpu_tlb_fill_switch,
     .cpu_exec_interrupt = riscv_cpu_exec_interrupt,
     .do_interrupt = riscv_cpu_do_interrupt,
     .do_transaction_failed = riscv_cpu_do_transaction_failed,

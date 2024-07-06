@@ -623,6 +623,7 @@ void riscv_cpu_set_virt_enabled(CPURISCVState *env, bool enable)
 {
     /* Flush the TLB on all virt mode changes. */
     if (env->virt_enabled != enable) {
+        // modhere
         tlb_flush(env_cpu(env));
     }
 
@@ -826,6 +827,10 @@ static int get_physical_address(CPURISCVState *env, hwaddr *physical,
         use_background = true;
     }
 
+    /*
+     * If in machine mode or if the mmu is disabled the virtual
+     * address is equal to the virtual
+     */
     if (mode == PRV_M || !riscv_cpu_cfg(env)->mmu) {
         *physical = addr;
         *ret_prot = PAGE_READ | PAGE_WRITE | PAGE_EXEC;
@@ -834,8 +839,12 @@ static int get_physical_address(CPURISCVState *env, hwaddr *physical,
 
     *ret_prot = 0;
 
-    hwaddr base;
-    int levels, ptidxbits, ptesize, vm, widened;
+    hwaddr base;    // satp base address
+    int levels;     // number of levels in the multi-level page table
+    int ptidxbits;  // size of index for a page table directory
+    int ptesize;    // size of a single PTE
+    int vm;
+    int widened;
 
     if (first_stage == true) {
         if (use_background) {
@@ -868,20 +877,32 @@ static int get_physical_address(CPURISCVState *env, hwaddr *physical,
     }
 
     switch (vm) {
-    case VM_1_10_SV32:
-      levels = 2; ptidxbits = 10; ptesize = 4; break;
-    case VM_1_10_SV39:
-      levels = 3; ptidxbits = 9; ptesize = 8; break;
-    case VM_1_10_SV48:
-      levels = 4; ptidxbits = 9; ptesize = 8; break;
-    case VM_1_10_SV57:
-      levels = 5; ptidxbits = 9; ptesize = 8; break;
-    case VM_1_10_MBARE:
-        *physical = addr;
-        *ret_prot = PAGE_READ | PAGE_WRITE | PAGE_EXEC;
-        return TRANSLATE_SUCCESS;
-    default:
-      g_assert_not_reached();
+        case VM_1_10_SV32:
+            levels = 2;
+            ptidxbits = 10;
+            ptesize = 4;
+            break;
+        case VM_1_10_SV39:
+            levels = 3;
+            ptidxbits = 9;
+            ptesize = 8;
+            break;
+        case VM_1_10_SV48:
+            levels = 4;
+            ptidxbits = 9;
+            ptesize = 8;
+            break;
+        case VM_1_10_SV57:
+            levels = 5;
+            ptidxbits = 9;
+            ptesize = 8;
+            break;
+        case VM_1_10_MBARE:
+            *physical = addr;
+            *ret_prot = PAGE_READ | PAGE_WRITE | PAGE_EXEC;
+            return TRANSLATE_SUCCESS;
+        default:
+            g_assert_not_reached();
     }
 
     CPUState *cs = env_cpu(env);
@@ -928,7 +949,7 @@ restart:
         target_ulong idx;
         if (i == 0) {
             idx = (addr >> (PGSHIFT + ptshift)) &
-                           ((1 << (ptidxbits + widened)) - 1);
+                  ((1 << (ptidxbits + widened)) - 1);
         } else {
             idx = (addr >> (PGSHIFT + ptshift)) &
                            ((1 << ptidxbits) - 1);
@@ -1012,7 +1033,7 @@ restart:
     /* No leaf pte at any translation level. */
     return TRANSLATE_FAIL;
 
- leaf:
+leaf:
     if (ppn & ((1ULL << ptshift) - 1)) {
         /* Misaligned PPN */
         return TRANSLATE_FAIL;
@@ -1024,9 +1045,9 @@ restart:
 
     /* Check for reserved combinations of RWX flags. */
     switch (pte & (PTE_R | PTE_W | PTE_X)) {
-    case PTE_W:
-    case PTE_W | PTE_X:
-        return TRANSLATE_FAIL;
+        case PTE_W:
+        case PTE_W | PTE_X:
+            return TRANSLATE_FAIL;
     }
 
     int prot = 0;
@@ -1175,43 +1196,56 @@ static void raise_mmu_exception(CPURISCVState *env, target_ulong address,
     CPUState *cs = env_cpu(env);
 
     switch (access_type) {
-    case MMU_INST_FETCH:
-        if (pmp_violation) {
-            cs->exception_index = RISCV_EXCP_INST_ACCESS_FAULT;
-        } else if (env->virt_enabled && !first_stage) {
-            cs->exception_index = RISCV_EXCP_INST_GUEST_PAGE_FAULT;
-        } else {
-            cs->exception_index = RISCV_EXCP_INST_PAGE_FAULT;
-        }
-        break;
-    case MMU_DATA_LOAD:
-        if (pmp_violation) {
-            cs->exception_index = RISCV_EXCP_LOAD_ACCESS_FAULT;
-        } else if (two_stage && !first_stage) {
-            cs->exception_index = RISCV_EXCP_LOAD_GUEST_ACCESS_FAULT;
-        } else {
-            cs->exception_index = RISCV_EXCP_LOAD_PAGE_FAULT;
-        }
-        break;
-    case MMU_DATA_STORE:
-        if (pmp_violation) {
-            cs->exception_index = RISCV_EXCP_STORE_AMO_ACCESS_FAULT;
-        } else if (two_stage && !first_stage) {
-            cs->exception_index = RISCV_EXCP_STORE_GUEST_AMO_ACCESS_FAULT;
-        } else {
-            cs->exception_index = RISCV_EXCP_STORE_PAGE_FAULT;
-        }
-        break;
-    default:
-        g_assert_not_reached();
+        case MMU_INST_FETCH:
+            if (pmp_violation) {
+                cs->exception_index = RISCV_EXCP_INST_ACCESS_FAULT;
+            } else if (env->virt_enabled && !first_stage) {
+                cs->exception_index = RISCV_EXCP_INST_GUEST_PAGE_FAULT;
+            } else {
+                cs->exception_index = RISCV_EXCP_INST_PAGE_FAULT;
+            }
+            break;
+        case MMU_DATA_LOAD:
+            if (pmp_violation) {
+                cs->exception_index = RISCV_EXCP_LOAD_ACCESS_FAULT;
+            } else if (two_stage && !first_stage) {
+                cs->exception_index = RISCV_EXCP_LOAD_GUEST_ACCESS_FAULT;
+            } else {
+                cs->exception_index = RISCV_EXCP_LOAD_PAGE_FAULT;
+            }
+            break;
+        case MMU_DATA_STORE:
+            if (pmp_violation) {
+                cs->exception_index = RISCV_EXCP_STORE_AMO_ACCESS_FAULT;
+            } else if (two_stage && !first_stage) {
+                cs->exception_index = RISCV_EXCP_STORE_GUEST_AMO_ACCESS_FAULT;
+            } else {
+                cs->exception_index = RISCV_EXCP_STORE_PAGE_FAULT;
+            }
+            break;
+        default:
+            g_assert_not_reached();
     }
     env->badaddr = address;
     env->two_stage_lookup = two_stage;
     env->two_stage_indirect_lookup = two_stage_indirect;
 }
 
-hwaddr riscv_cpu_get_phys_page_debug(CPUState *cs, vaddr addr)
-{
+static void raise_tlb_exception(CPURISCVState *env, target_ulong address,
+                                MMUAccessType access_type,
+                                /*unnecessary?*/ bool pmp_violation,
+                                bool first_stage, bool two_stage,
+                                bool two_stage_indirect) {
+    CPUState *cs = env_cpu(env);
+
+    cs->exception_index = RISCV_EXCP_TLB_MISS;
+
+    env->badaddr = address;
+    env->two_stage_lookup = two_stage;
+    env->two_stage_indirect_lookup = two_stage_indirect;
+}
+
+hwaddr riscv_cpu_get_phys_page_debug(CPUState *cs, vaddr addr) {
     RISCVCPU *cpu = RISCV_CPU(cs);
     CPURISCVState *env = &cpu->env;
     hwaddr phys_addr;
@@ -1263,17 +1297,17 @@ void riscv_cpu_do_unaligned_access(CPUState *cs, vaddr addr,
     RISCVCPU *cpu = RISCV_CPU(cs);
     CPURISCVState *env = &cpu->env;
     switch (access_type) {
-    case MMU_INST_FETCH:
-        cs->exception_index = RISCV_EXCP_INST_ADDR_MIS;
-        break;
-    case MMU_DATA_LOAD:
-        cs->exception_index = RISCV_EXCP_LOAD_ADDR_MIS;
-        break;
-    case MMU_DATA_STORE:
-        cs->exception_index = RISCV_EXCP_STORE_AMO_ADDR_MIS;
-        break;
-    default:
-        g_assert_not_reached();
+        case MMU_INST_FETCH:
+            cs->exception_index = RISCV_EXCP_INST_ADDR_MIS;
+            break;
+        case MMU_DATA_LOAD:
+            cs->exception_index = RISCV_EXCP_LOAD_ADDR_MIS;
+            break;
+        case MMU_DATA_STORE:
+            cs->exception_index = RISCV_EXCP_STORE_AMO_ADDR_MIS;
+            break;
+        default:
+            g_assert_not_reached();
     }
     env->badaddr = addr;
     env->two_stage_lookup = mmuidx_2stage(mmu_idx);
@@ -1287,20 +1321,34 @@ static void pmu_tlb_fill_incr_ctr(RISCVCPU *cpu, MMUAccessType access_type)
     enum riscv_pmu_event_idx pmu_event_type;
 
     switch (access_type) {
-    case MMU_INST_FETCH:
-        pmu_event_type = RISCV_PMU_EVENT_CACHE_ITLB_PREFETCH_MISS;
-        break;
-    case MMU_DATA_LOAD:
-        pmu_event_type = RISCV_PMU_EVENT_CACHE_DTLB_READ_MISS;
-        break;
-    case MMU_DATA_STORE:
-        pmu_event_type = RISCV_PMU_EVENT_CACHE_DTLB_WRITE_MISS;
-        break;
-    default:
-        return;
+        case MMU_INST_FETCH:
+            pmu_event_type = RISCV_PMU_EVENT_CACHE_ITLB_PREFETCH_MISS;
+            break;
+        case MMU_DATA_LOAD:
+            pmu_event_type = RISCV_PMU_EVENT_CACHE_DTLB_READ_MISS;
+            break;
+        case MMU_DATA_STORE:
+            pmu_event_type = RISCV_PMU_EVENT_CACHE_DTLB_WRITE_MISS;
+            break;
+        default:
+            return;
     }
 
     riscv_pmu_incr_ctr(cpu, pmu_event_type);
+}
+
+static bool use_sw_tlb_fill = false;
+// modhere
+
+bool riscv_cpu_tlb_fill_switch(CPUState *cs, vaddr address, int size,
+                        MMUAccessType access_type, int mmu_idx,
+                        bool probe, uintptr_t retaddr)
+{
+    if(use_sw_tlb_fill) {
+        return my_riscv_cpu_tlb_fill(cs,address,size,access_type, mmu_idx, probe, retaddr);
+    } else {
+        return riscv_cpu_tlb_fill(cs,address,size,access_type, mmu_idx, probe, retaddr);
+    }
 }
 
 bool riscv_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
@@ -1423,12 +1471,37 @@ bool riscv_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
     } else if (probe) {
         return false;
     } else {
+        // Page Fault?
         raise_mmu_exception(env, address, access_type, pmp_violation,
                             first_stage_error, two_stage_lookup,
                             two_stage_indirect_error);
         cpu_loop_exit_restore(cs, retaddr);
     }
 
+    return true;
+}
+
+// TODO switch between this function and the normal "riscv_cpu_tlb_fill" using
+// csr
+bool my_riscv_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
+                           MMUAccessType access_type, int mmu_idx, bool probe,
+                           uintptr_t retaddr) {
+    qemu_log_mask(CPU_LOG_MMU, "%s ad %" VADDR_PRIx " rw %d mmu_idx %d\n",
+                  __func__, address, access_type, mmu_idx);
+
+    // Copied and modified from `riscv_cpu_tlb_fill`
+
+    RISCVCPU *cpu = RISCV_CPU(cs);
+    CPURISCVState *env = &cpu->env;
+    bool pmp_violation = false;
+    bool first_stage_error = true;
+    bool two_stage_lookup = mmuidx_2stage(mmu_idx);
+    bool two_stage_indirect_error = false;
+
+    raise_tlb_exception(env, address, access_type, pmp_violation,
+                        first_stage_error, two_stage_lookup,
+                        two_stage_indirect_error);
+    cpu_loop_exit_restore(cs, retaddr);
     return true;
 }
 
@@ -1449,144 +1522,144 @@ static target_ulong riscv_transformed_insn(CPURISCVState *env,
     if ((insn & 0x3) != 0x3) {
         /* Transform 16bit instruction into 32bit instruction */
         switch (GET_C_OP(insn)) {
-        case OPC_RISC_C_OP_QUAD0: /* Quadrant 0 */
-            switch (GET_C_FUNC(insn)) {
-            case OPC_RISC_C_FUNC_FLD_LQ:
-                if (riscv_cpu_xlen(env) != 128) { /* C.FLD (RV32/64) */
-                    xinsn = OPC_RISC_FLD;
-                    xinsn = SET_RD(xinsn, GET_C_RS2S(insn));
-                    access_rs1 = GET_C_RS1S(insn);
-                    access_imm = GET_C_LD_IMM(insn);
-                    access_size = 8;
+            case OPC_RISC_C_OP_QUAD0: /* Quadrant 0 */
+                switch (GET_C_FUNC(insn)) {
+                    case OPC_RISC_C_FUNC_FLD_LQ:
+                        if (riscv_cpu_xlen(env) != 128) { /* C.FLD (RV32/64) */
+                            xinsn = OPC_RISC_FLD;
+                            xinsn = SET_RD(xinsn, GET_C_RS2S(insn));
+                            access_rs1 = GET_C_RS1S(insn);
+                            access_imm = GET_C_LD_IMM(insn);
+                            access_size = 8;
+                        }
+                        break;
+                    case OPC_RISC_C_FUNC_LW: /* C.LW */
+                        xinsn = OPC_RISC_LW;
+                        xinsn = SET_RD(xinsn, GET_C_RS2S(insn));
+                        access_rs1 = GET_C_RS1S(insn);
+                        access_imm = GET_C_LW_IMM(insn);
+                        access_size = 4;
+                        break;
+                    case OPC_RISC_C_FUNC_FLW_LD:
+                        if (riscv_cpu_xlen(env) == 32) { /* C.FLW (RV32) */
+                            xinsn = OPC_RISC_FLW;
+                            xinsn = SET_RD(xinsn, GET_C_RS2S(insn));
+                            access_rs1 = GET_C_RS1S(insn);
+                            access_imm = GET_C_LW_IMM(insn);
+                            access_size = 4;
+                        } else { /* C.LD (RV64/RV128) */
+                            xinsn = OPC_RISC_LD;
+                            xinsn = SET_RD(xinsn, GET_C_RS2S(insn));
+                            access_rs1 = GET_C_RS1S(insn);
+                            access_imm = GET_C_LD_IMM(insn);
+                            access_size = 8;
+                        }
+                        break;
+                    case OPC_RISC_C_FUNC_FSD_SQ:
+                        if (riscv_cpu_xlen(env) != 128) { /* C.FSD (RV32/64) */
+                            xinsn = OPC_RISC_FSD;
+                            xinsn = SET_RS2(xinsn, GET_C_RS2S(insn));
+                            access_rs1 = GET_C_RS1S(insn);
+                            access_imm = GET_C_SD_IMM(insn);
+                            access_size = 8;
+                        }
+                        break;
+                    case OPC_RISC_C_FUNC_SW: /* C.SW */
+                        xinsn = OPC_RISC_SW;
+                        xinsn = SET_RS2(xinsn, GET_C_RS2S(insn));
+                        access_rs1 = GET_C_RS1S(insn);
+                        access_imm = GET_C_SW_IMM(insn);
+                        access_size = 4;
+                        break;
+                    case OPC_RISC_C_FUNC_FSW_SD:
+                        if (riscv_cpu_xlen(env) == 32) { /* C.FSW (RV32) */
+                            xinsn = OPC_RISC_FSW;
+                            xinsn = SET_RS2(xinsn, GET_C_RS2S(insn));
+                            access_rs1 = GET_C_RS1S(insn);
+                            access_imm = GET_C_SW_IMM(insn);
+                            access_size = 4;
+                        } else { /* C.SD (RV64/RV128) */
+                            xinsn = OPC_RISC_SD;
+                            xinsn = SET_RS2(xinsn, GET_C_RS2S(insn));
+                            access_rs1 = GET_C_RS1S(insn);
+                            access_imm = GET_C_SD_IMM(insn);
+                            access_size = 8;
+                        }
+                        break;
+                    default:
+                        break;
                 }
                 break;
-            case OPC_RISC_C_FUNC_LW: /* C.LW */
-                xinsn = OPC_RISC_LW;
-                xinsn = SET_RD(xinsn, GET_C_RS2S(insn));
-                access_rs1 = GET_C_RS1S(insn);
-                access_imm = GET_C_LW_IMM(insn);
-                access_size = 4;
-                break;
-            case OPC_RISC_C_FUNC_FLW_LD:
-                if (riscv_cpu_xlen(env) == 32) { /* C.FLW (RV32) */
-                    xinsn = OPC_RISC_FLW;
-                    xinsn = SET_RD(xinsn, GET_C_RS2S(insn));
-                    access_rs1 = GET_C_RS1S(insn);
-                    access_imm = GET_C_LW_IMM(insn);
-                    access_size = 4;
-                } else { /* C.LD (RV64/RV128) */
-                    xinsn = OPC_RISC_LD;
-                    xinsn = SET_RD(xinsn, GET_C_RS2S(insn));
-                    access_rs1 = GET_C_RS1S(insn);
-                    access_imm = GET_C_LD_IMM(insn);
-                    access_size = 8;
-                }
-                break;
-            case OPC_RISC_C_FUNC_FSD_SQ:
-                if (riscv_cpu_xlen(env) != 128) { /* C.FSD (RV32/64) */
-                    xinsn = OPC_RISC_FSD;
-                    xinsn = SET_RS2(xinsn, GET_C_RS2S(insn));
-                    access_rs1 = GET_C_RS1S(insn);
-                    access_imm = GET_C_SD_IMM(insn);
-                    access_size = 8;
-                }
-                break;
-            case OPC_RISC_C_FUNC_SW: /* C.SW */
-                xinsn = OPC_RISC_SW;
-                xinsn = SET_RS2(xinsn, GET_C_RS2S(insn));
-                access_rs1 = GET_C_RS1S(insn);
-                access_imm = GET_C_SW_IMM(insn);
-                access_size = 4;
-                break;
-            case OPC_RISC_C_FUNC_FSW_SD:
-                if (riscv_cpu_xlen(env) == 32) { /* C.FSW (RV32) */
-                    xinsn = OPC_RISC_FSW;
-                    xinsn = SET_RS2(xinsn, GET_C_RS2S(insn));
-                    access_rs1 = GET_C_RS1S(insn);
-                    access_imm = GET_C_SW_IMM(insn);
-                    access_size = 4;
-                } else { /* C.SD (RV64/RV128) */
-                    xinsn = OPC_RISC_SD;
-                    xinsn = SET_RS2(xinsn, GET_C_RS2S(insn));
-                    access_rs1 = GET_C_RS1S(insn);
-                    access_imm = GET_C_SD_IMM(insn);
-                    access_size = 8;
-                }
-                break;
-            default:
-                break;
-            }
-            break;
-        case OPC_RISC_C_OP_QUAD2: /* Quadrant 2 */
-            switch (GET_C_FUNC(insn)) {
-            case OPC_RISC_C_FUNC_FLDSP_LQSP:
+            case OPC_RISC_C_OP_QUAD2: /* Quadrant 2 */
+                switch (GET_C_FUNC(insn)) {
+                    case OPC_RISC_C_FUNC_FLDSP_LQSP:
                 if (riscv_cpu_xlen(env) != 128) { /* C.FLDSP (RV32/64) */
-                    xinsn = OPC_RISC_FLD;
-                    xinsn = SET_RD(xinsn, GET_C_RD(insn));
-                    access_rs1 = 2;
-                    access_imm = GET_C_LDSP_IMM(insn);
-                    access_size = 8;
-                }
-                break;
-            case OPC_RISC_C_FUNC_LWSP: /* C.LWSP */
-                xinsn = OPC_RISC_LW;
-                xinsn = SET_RD(xinsn, GET_C_RD(insn));
-                access_rs1 = 2;
-                access_imm = GET_C_LWSP_IMM(insn);
-                access_size = 4;
-                break;
-            case OPC_RISC_C_FUNC_FLWSP_LDSP:
-                if (riscv_cpu_xlen(env) == 32) { /* C.FLWSP (RV32) */
-                    xinsn = OPC_RISC_FLW;
-                    xinsn = SET_RD(xinsn, GET_C_RD(insn));
-                    access_rs1 = 2;
-                    access_imm = GET_C_LWSP_IMM(insn);
-                    access_size = 4;
-                } else { /* C.LDSP (RV64/RV128) */
-                    xinsn = OPC_RISC_LD;
-                    xinsn = SET_RD(xinsn, GET_C_RD(insn));
-                    access_rs1 = 2;
-                    access_imm = GET_C_LDSP_IMM(insn);
-                    access_size = 8;
-                }
-                break;
-            case OPC_RISC_C_FUNC_FSDSP_SQSP:
+                            xinsn = OPC_RISC_FLD;
+                            xinsn = SET_RD(xinsn, GET_C_RD(insn));
+                            access_rs1 = 2;
+                            access_imm = GET_C_LDSP_IMM(insn);
+                            access_size = 8;
+                        }
+                        break;
+                    case OPC_RISC_C_FUNC_LWSP: /* C.LWSP */
+                        xinsn = OPC_RISC_LW;
+                        xinsn = SET_RD(xinsn, GET_C_RD(insn));
+                        access_rs1 = 2;
+                        access_imm = GET_C_LWSP_IMM(insn);
+                        access_size = 4;
+                        break;
+                    case OPC_RISC_C_FUNC_FLWSP_LDSP:
+                        if (riscv_cpu_xlen(env) == 32) { /* C.FLWSP (RV32) */
+                            xinsn = OPC_RISC_FLW;
+                            xinsn = SET_RD(xinsn, GET_C_RD(insn));
+                            access_rs1 = 2;
+                            access_imm = GET_C_LWSP_IMM(insn);
+                            access_size = 4;
+                        } else { /* C.LDSP (RV64/RV128) */
+                            xinsn = OPC_RISC_LD;
+                            xinsn = SET_RD(xinsn, GET_C_RD(insn));
+                            access_rs1 = 2;
+                            access_imm = GET_C_LDSP_IMM(insn);
+                            access_size = 8;
+                        }
+                        break;
+                    case OPC_RISC_C_FUNC_FSDSP_SQSP:
                 if (riscv_cpu_xlen(env) != 128) { /* C.FSDSP (RV32/64) */
-                    xinsn = OPC_RISC_FSD;
-                    xinsn = SET_RS2(xinsn, GET_C_RS2(insn));
-                    access_rs1 = 2;
-                    access_imm = GET_C_SDSP_IMM(insn);
-                    access_size = 8;
-                }
-                break;
-            case OPC_RISC_C_FUNC_SWSP: /* C.SWSP */
-                xinsn = OPC_RISC_SW;
-                xinsn = SET_RS2(xinsn, GET_C_RS2(insn));
-                access_rs1 = 2;
-                access_imm = GET_C_SWSP_IMM(insn);
-                access_size = 4;
-                break;
-            case 7:
-                if (riscv_cpu_xlen(env) == 32) { /* C.FSWSP (RV32) */
-                    xinsn = OPC_RISC_FSW;
-                    xinsn = SET_RS2(xinsn, GET_C_RS2(insn));
-                    access_rs1 = 2;
-                    access_imm = GET_C_SWSP_IMM(insn);
-                    access_size = 4;
-                } else { /* C.SDSP (RV64/RV128) */
-                    xinsn = OPC_RISC_SD;
-                    xinsn = SET_RS2(xinsn, GET_C_RS2(insn));
-                    access_rs1 = 2;
-                    access_imm = GET_C_SDSP_IMM(insn);
-                    access_size = 8;
+                            xinsn = OPC_RISC_FSD;
+                            xinsn = SET_RS2(xinsn, GET_C_RS2(insn));
+                            access_rs1 = 2;
+                            access_imm = GET_C_SDSP_IMM(insn);
+                            access_size = 8;
+                        }
+                        break;
+                    case OPC_RISC_C_FUNC_SWSP: /* C.SWSP */
+                        xinsn = OPC_RISC_SW;
+                        xinsn = SET_RS2(xinsn, GET_C_RS2(insn));
+                        access_rs1 = 2;
+                        access_imm = GET_C_SWSP_IMM(insn);
+                        access_size = 4;
+                        break;
+                    case 7:
+                        if (riscv_cpu_xlen(env) == 32) { /* C.FSWSP (RV32) */
+                            xinsn = OPC_RISC_FSW;
+                            xinsn = SET_RS2(xinsn, GET_C_RS2(insn));
+                            access_rs1 = 2;
+                            access_imm = GET_C_SWSP_IMM(insn);
+                            access_size = 4;
+                        } else { /* C.SDSP (RV64/RV128) */
+                            xinsn = OPC_RISC_SD;
+                            xinsn = SET_RS2(xinsn, GET_C_RS2(insn));
+                            access_rs1 = 2;
+                            access_imm = GET_C_SDSP_IMM(insn);
+                            access_size = 8;
+                        }
+                        break;
+                    default:
+                        break;
                 }
                 break;
             default:
                 break;
-            }
-            break;
-        default:
-            break;
         }
 
         /*
@@ -1597,41 +1670,41 @@ static target_ulong riscv_transformed_insn(CPURISCVState *env,
     } else {
         /* Transform 32bit (or wider) instructions */
         switch (MASK_OP_MAJOR(insn)) {
-        case OPC_RISC_ATOMIC:
-            xinsn = insn;
-            access_rs1 = GET_RS1(insn);
-            access_size = 1 << GET_FUNCT3(insn);
-            break;
-        case OPC_RISC_LOAD:
-        case OPC_RISC_FP_LOAD:
-            xinsn = SET_I_IMM(insn, 0);
-            access_rs1 = GET_RS1(insn);
-            access_imm = GET_IMM(insn);
-            access_size = 1 << GET_FUNCT3(insn);
-            break;
-        case OPC_RISC_STORE:
-        case OPC_RISC_FP_STORE:
-            xinsn = SET_S_IMM(insn, 0);
-            access_rs1 = GET_RS1(insn);
-            access_imm = GET_STORE_IMM(insn);
-            access_size = 1 << GET_FUNCT3(insn);
-            break;
-        case OPC_RISC_SYSTEM:
-            if (MASK_OP_SYSTEM(insn) == OPC_RISC_HLVHSV) {
+            case OPC_RISC_ATOMIC:
                 xinsn = insn;
                 access_rs1 = GET_RS1(insn);
-                access_size = 1 << ((GET_FUNCT7(insn) >> 1) & 0x3);
-                access_size = 1 << access_size;
-            }
-            break;
-        default:
-            break;
+                access_size = 1 << GET_FUNCT3(insn);
+                break;
+            case OPC_RISC_LOAD:
+            case OPC_RISC_FP_LOAD:
+                xinsn = SET_I_IMM(insn, 0);
+                access_rs1 = GET_RS1(insn);
+                access_imm = GET_IMM(insn);
+                access_size = 1 << GET_FUNCT3(insn);
+                break;
+            case OPC_RISC_STORE:
+            case OPC_RISC_FP_STORE:
+                xinsn = SET_S_IMM(insn, 0);
+                access_rs1 = GET_RS1(insn);
+                access_imm = GET_STORE_IMM(insn);
+                access_size = 1 << GET_FUNCT3(insn);
+                break;
+            case OPC_RISC_SYSTEM:
+                if (MASK_OP_SYSTEM(insn) == OPC_RISC_HLVHSV) {
+                    xinsn = insn;
+                    access_rs1 = GET_RS1(insn);
+                    access_size = 1 << ((GET_FUNCT7(insn) >> 1) & 0x3);
+                    access_size = 1 << access_size;
+                }
+                break;
+            default:
+                break;
         }
     }
 
     if (access_size) {
         xinsn = SET_RS1(xinsn, (taddr - (env->gpr[access_rs1] + access_imm)) &
-                               (access_size - 1));
+                                   (access_size - 1));
     }
 
     return xinsn;
@@ -1644,6 +1717,7 @@ static target_ulong riscv_transformed_insn(CPURISCVState *env,
  * Adapted from Spike's processor_t::take_trap.
  *
  */
+//modhere Interrupt exec
 void riscv_cpu_do_interrupt(CPUState *cs)
 {
 #if !defined(CONFIG_USER_ONLY)
@@ -1672,60 +1746,62 @@ void riscv_cpu_do_interrupt(CPUState *cs)
     if (!async) {
         /* set tval to badaddr for traps with address information */
         switch (cause) {
-        case RISCV_EXCP_SEMIHOST:
-            do_common_semihosting(cs);
-            env->pc += 4;
-            return;
-        case RISCV_EXCP_LOAD_GUEST_ACCESS_FAULT:
-        case RISCV_EXCP_STORE_GUEST_AMO_ACCESS_FAULT:
-        case RISCV_EXCP_LOAD_ADDR_MIS:
-        case RISCV_EXCP_STORE_AMO_ADDR_MIS:
-        case RISCV_EXCP_LOAD_ACCESS_FAULT:
-        case RISCV_EXCP_STORE_AMO_ACCESS_FAULT:
-        case RISCV_EXCP_LOAD_PAGE_FAULT:
-        case RISCV_EXCP_STORE_PAGE_FAULT:
-            write_gva = env->two_stage_lookup;
-            tval = env->badaddr;
-            if (env->two_stage_indirect_lookup) {
-                /*
-                 * special pseudoinstruction for G-stage fault taken while
-                 * doing VS-stage page table walk.
-                 */
+            case RISCV_EXCP_SEMIHOST:
+                do_common_semihosting(cs);
+                env->pc += 4;
+                return;
+            case RISCV_EXCP_LOAD_GUEST_ACCESS_FAULT:
+            case RISCV_EXCP_STORE_GUEST_AMO_ACCESS_FAULT:
+            case RISCV_EXCP_LOAD_ADDR_MIS:
+            case RISCV_EXCP_STORE_AMO_ADDR_MIS:
+            case RISCV_EXCP_LOAD_ACCESS_FAULT:
+            case RISCV_EXCP_STORE_AMO_ACCESS_FAULT:
+            case RISCV_EXCP_LOAD_PAGE_FAULT:
+            case RISCV_EXCP_STORE_PAGE_FAULT:
+            //modhere my exception enum
+            case RISCV_EXCP_TLB_MISS:
+                write_gva = env->two_stage_lookup;
+                tval = env->badaddr;
+                if (env->two_stage_indirect_lookup) {
+                    /*
+                     * special pseudoinstruction for G-stage fault taken while
+                     * doing VS-stage page table walk.
+                     */
                 tinst = (riscv_cpu_xlen(env) == 32) ? 0x00002000 : 0x00003000;
-            } else {
-                /*
-                 * The "Addr. Offset" field in transformed instruction is
-                 * non-zero only for misaligned access.
-                 */
-                tinst = riscv_transformed_insn(env, env->bins, tval);
-            }
-            break;
-        case RISCV_EXCP_INST_GUEST_PAGE_FAULT:
-        case RISCV_EXCP_INST_ADDR_MIS:
-        case RISCV_EXCP_INST_ACCESS_FAULT:
-        case RISCV_EXCP_INST_PAGE_FAULT:
-            write_gva = env->two_stage_lookup;
-            tval = env->badaddr;
-            if (env->two_stage_indirect_lookup) {
-                /*
-                 * special pseudoinstruction for G-stage fault taken while
-                 * doing VS-stage page table walk.
-                 */
+                } else {
+                    /*
+                     * The "Addr. Offset" field in transformed instruction is
+                     * non-zero only for misaligned access.
+                     */
+                    tinst = riscv_transformed_insn(env, env->bins, tval);
+                }
+                break;
+            case RISCV_EXCP_INST_GUEST_PAGE_FAULT:
+            case RISCV_EXCP_INST_ADDR_MIS:
+            case RISCV_EXCP_INST_ACCESS_FAULT:
+            case RISCV_EXCP_INST_PAGE_FAULT:
+                write_gva = env->two_stage_lookup;
+                tval = env->badaddr;
+                if (env->two_stage_indirect_lookup) {
+                    /*
+                     * special pseudoinstruction for G-stage fault taken while
+                     * doing VS-stage page table walk.
+                     */
                 tinst = (riscv_cpu_xlen(env) == 32) ? 0x00002000 : 0x00003000;
-            }
-            break;
-        case RISCV_EXCP_ILLEGAL_INST:
-        case RISCV_EXCP_VIRT_INSTRUCTION_FAULT:
-            tval = env->bins;
-            break;
-        case RISCV_EXCP_BREAKPOINT:
-            if (cs->watchpoint_hit) {
-                tval = cs->watchpoint_hit->hitaddr;
-                cs->watchpoint_hit = NULL;
-            }
-            break;
-        default:
-            break;
+                }
+                break;
+            case RISCV_EXCP_ILLEGAL_INST:
+            case RISCV_EXCP_VIRT_INSTRUCTION_FAULT:
+                tval = env->bins;
+                break;
+            case RISCV_EXCP_BREAKPOINT:
+                if (cs->watchpoint_hit) {
+                    tval = cs->watchpoint_hit->hitaddr;
+                    cs->watchpoint_hit = NULL;
+                }
+                break;
+            default:
+                break;
         }
         /* ecall is dispatched as one cause so translate based on mode */
         if (cause == RISCV_EXCP_U_ECALL) {
@@ -1800,6 +1876,7 @@ void riscv_cpu_do_interrupt(CPUState *cs)
         env->htinst = tinst;
         env->pc = (env->stvec >> 2 << 2) +
                   ((async && (env->stvec & 3) == 1) ? cause * 4 : 0);
+        //modhere jump back into emulated code?
         riscv_cpu_set_mode(env, PRV_S);
     } else {
         /* handle the trap in M-mode */
