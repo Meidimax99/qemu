@@ -2099,7 +2099,7 @@ const rv_opcode_data rvi_opcode_data[] = {
 };
 
 /* CSR names */
-
+//modhere csr switch case
 static const char *csr_name(int csrno)
 {
     switch (csrno) {

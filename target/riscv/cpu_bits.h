@@ -675,7 +675,7 @@ typedef enum RISCVException {
     RISCV_EXCP_LOAD_GUEST_ACCESS_FAULT = 0x15,
     RISCV_EXCP_VIRT_INSTRUCTION_FAULT = 0x16,
     RISCV_EXCP_STORE_GUEST_AMO_ACCESS_FAULT = 0x17,
-    //modhere 
+    //modhere Trap numbers
     //TODO custom exception for tlb miss
     RISCV_EXCP_TLB_MISS = 0x18
 } RISCVException;

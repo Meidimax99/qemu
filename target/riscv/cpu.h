@@ -248,6 +248,7 @@ struct CPUArchState {
     // Machine Registers!
     target_ulong satp;   /* since: priv-1.10.0 */
     target_ulong stval;
+    //modhere this is only 32 Bit, priv specifies 64 bit //nvm it is 8*8 Byte
     target_ulong medeleg;
 
     target_ulong stvec;

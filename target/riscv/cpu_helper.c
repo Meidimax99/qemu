@@ -757,6 +757,7 @@ static int get_physical_address_pmp(CPURISCVState *env, int *prot, hwaddr addr,
     pmp_priv_t pmp_priv;
     bool pmp_has_privs;
 
+    //PMP disabled -> all rights
     if (!riscv_cpu_cfg(env)->pmp) {
         *prot = PAGE_READ | PAGE_WRITE | PAGE_EXEC;
         return TRANSLATE_SUCCESS;
@@ -1238,6 +1239,8 @@ static void raise_tlb_exception(CPURISCVState *env, target_ulong address,
                                 bool two_stage_indirect) {
     CPUState *cs = env_cpu(env);
 
+    //cs->exception_index = RISCV_EXCP_TLB_MISS;
+    //TODO use page fault to check if it comes through to xv6
     cs->exception_index = RISCV_EXCP_TLB_MISS;
 
     env->badaddr = address;
@@ -1337,18 +1340,58 @@ static void pmu_tlb_fill_incr_ctr(RISCVCPU *cpu, MMUAccessType access_type)
     riscv_pmu_incr_ctr(cpu, pmu_event_type);
 }
 
-static bool use_sw_tlb_fill = false;
+//static bool use_sw_tlb_fill = true;
 // modhere
+bool address_in_trampoline(vaddr address);
+bool address_in_trapframe(vaddr address);
+
+
+bool address_in_trampoline(vaddr address) {
+    long maxva = (1L << (9 + 9 + 9 + 12 - 1));
+    long maxva_lower_bound = maxva - (1L << 12);
+
+    //Check if address is in trampoline mapped area
+    if(address > maxva_lower_bound && address < maxva) {
+        printf("Trampoline!\taddr=0x%lx\n", address);
+        return true;
+    }
+    return false;
+}
+
+bool address_in_trapframe(vaddr address) {
+    long maxva = (1L << (9 + 9 + 9 + 12 - 1));
+    long maxva_lower_bound = maxva - (1L << 12);
+    long pgsize = 1L << 12;
+    long trapframe_lower_bound = maxva_lower_bound - pgsize;
+    //Check if address is in trampoline mapped area
+    if(address > trapframe_lower_bound && address < maxva_lower_bound) {
+        printf("Trapframe!\taddr=0x%lx\n", address);
+        return true;
+    }
+    return false;
+}
+
+bool riscv_cpu_tlb_fill_exc(CPUState *cs, vaddr address, int size,
+                        MMUAccessType access_type, int mmu_idx,
+                        bool probe, uintptr_t retaddr);
 
 bool riscv_cpu_tlb_fill_switch(CPUState *cs, vaddr address, int size,
                         MMUAccessType access_type, int mmu_idx,
                         bool probe, uintptr_t retaddr)
 {
-    if(use_sw_tlb_fill) {
-        return my_riscv_cpu_tlb_fill(cs,address,size,access_type, mmu_idx, probe, retaddr);
+    bool ret = false;
+    //TODO set global bit in tlb -> dont flush them
+    //bool in_trampoline = address_in_trampoline(address);
+    //bool in_trapframe = address_in_trapframe(address);
+    //if(!in_trampoline && !in_trapframe && use_sw_tlb_fill) {
+        //return my_riscv_cpu_tlb_fill(cs,address,size,access_type, mmu_idx, probe, retaddr);
+    if(address == (uint64_t)0x88000000) {
+        printf("Using custom tlb fill routine\n");
+        ret = my_riscv_cpu_tlb_fill(cs,address,size,access_type, mmu_idx, probe, retaddr);
     } else {
-        return riscv_cpu_tlb_fill(cs,address,size,access_type, mmu_idx, probe, retaddr);
+        ret =  riscv_cpu_tlb_fill(cs,address,size,access_type, mmu_idx, probe, retaddr);
     }
+    return ret;
 }
 
 bool riscv_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
@@ -1375,6 +1418,8 @@ bool riscv_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
                   __func__, address, access_type, mmu_idx);
 
     pmu_tlb_fill_incr_ctr(cpu, access_type);
+    //Lookup for guest systems running on  hypervisor mode 
+    //Guest virt -> guest phys -> supervisor phys
     if (two_stage_lookup) {
         /* Two stage lookup */
         ret = get_physical_address(env, &pa, &prot, address,
@@ -1447,6 +1492,7 @@ bool riscv_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
                       __func__, address, ret, pa, prot);
 
         if (ret == TRANSLATE_SUCCESS) {
+            //get pmp protection bits for the physical page
             ret = get_physical_address_pmp(env, &prot_pmp, pa,
                                            size, access_type, mode);
             tlb_size = pmp_get_tlb_size(env, pa);
@@ -1465,6 +1511,7 @@ bool riscv_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
     }
 
     if (ret == TRANSLATE_SUCCESS) {
+        //modhere how to write a TLB entry
         tlb_set_page(cs, address & ~(tlb_size - 1), pa & ~(tlb_size - 1),
                      prot, mmu_idx, tlb_size);
         return true;
@@ -1477,6 +1524,144 @@ bool riscv_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
                             two_stage_indirect_error);
         cpu_loop_exit_restore(cs, retaddr);
     }
+    
+
+    return true;
+}
+
+bool riscv_cpu_tlb_fill_exc(CPUState *cs, vaddr address, int size,
+                        MMUAccessType access_type, int mmu_idx,
+                        bool probe, uintptr_t retaddr)
+{
+    RISCVCPU *cpu = RISCV_CPU(cs);
+    CPURISCVState *env = &cpu->env;
+    vaddr im_address;
+    hwaddr pa = 0;
+    int prot, prot2, prot_pmp;
+    bool pmp_violation = false;
+    bool first_stage_error = true;
+    bool two_stage_lookup = mmuidx_2stage(mmu_idx);
+    bool two_stage_indirect_error = false;
+    int ret = TRANSLATE_FAIL;
+    int mode = mmuidx_priv(mmu_idx);
+    /* default TLB page size */
+    target_ulong tlb_size = TARGET_PAGE_SIZE;
+
+    env->guest_phys_fault_addr = 0;
+
+    qemu_log_mask(CPU_LOG_MMU, "%s ad %" VADDR_PRIx " rw %d mmu_idx %d\n",
+                  __func__, address, access_type, mmu_idx);
+
+    pmu_tlb_fill_incr_ctr(cpu, access_type);
+    //Lookup for guest systems running on  hypervisor mode 
+    //Guest virt -> guest phys -> supervisor phys
+    if (two_stage_lookup) {
+        /* Two stage lookup */
+        ret = get_physical_address(env, &pa, &prot, address,
+                                   &env->guest_phys_fault_addr, access_type,
+                                   mmu_idx, true, true, false);
+
+        /*
+         * A G-stage exception may be triggered during two state lookup.
+         * And the env->guest_phys_fault_addr has already been set in
+         * get_physical_address().
+         */
+        if (ret == TRANSLATE_G_STAGE_FAIL) {
+            first_stage_error = false;
+            two_stage_indirect_error = true;
+        }
+
+        qemu_log_mask(CPU_LOG_MMU,
+                      "%s 1st-stage address=%" VADDR_PRIx " ret %d physical "
+                      HWADDR_FMT_plx " prot %d\n",
+                      __func__, address, ret, pa, prot);
+
+        if (ret == TRANSLATE_SUCCESS) {
+            /* Second stage lookup */
+            im_address = pa;
+
+            ret = get_physical_address(env, &pa, &prot2, im_address, NULL,
+                                       access_type, MMUIdx_U, false, true,
+                                       false);
+
+            qemu_log_mask(CPU_LOG_MMU,
+                          "%s 2nd-stage address=%" VADDR_PRIx
+                          " ret %d physical "
+                          HWADDR_FMT_plx " prot %d\n",
+                          __func__, im_address, ret, pa, prot2);
+
+            prot &= prot2;
+
+            if (ret == TRANSLATE_SUCCESS) {
+                ret = get_physical_address_pmp(env, &prot_pmp, pa,
+                                               size, access_type, mode);
+                tlb_size = pmp_get_tlb_size(env, pa);
+
+                qemu_log_mask(CPU_LOG_MMU,
+                              "%s PMP address=" HWADDR_FMT_plx " ret %d prot"
+                              " %d tlb_size " TARGET_FMT_lu "\n",
+                              __func__, pa, ret, prot_pmp, tlb_size);
+
+                prot &= prot_pmp;
+            } else {
+                /*
+                 * Guest physical address translation failed, this is a HS
+                 * level exception
+                 */
+                first_stage_error = false;
+                if (ret != TRANSLATE_PMP_FAIL) {
+                    env->guest_phys_fault_addr = (im_address |
+                                                  (address &
+                                                   (TARGET_PAGE_SIZE - 1))) >> 2;
+                }
+            }
+        }
+    } else {
+        /* Single stage lookup */
+        ret = get_physical_address(env, &pa, &prot, address, NULL,
+                                   access_type, mmu_idx, true, false, false);
+
+        qemu_log_mask(CPU_LOG_MMU,
+                      "%s address=%" VADDR_PRIx " ret %d physical "
+                      HWADDR_FMT_plx " prot %d\n",
+                      __func__, address, ret, pa, prot);
+
+        if (ret == TRANSLATE_SUCCESS) {
+            //get pmp protection bits for the physical page
+            ret = get_physical_address_pmp(env, &prot_pmp, pa,
+                                           size, access_type, mode);
+            tlb_size = pmp_get_tlb_size(env, pa);
+
+            qemu_log_mask(CPU_LOG_MMU,
+                          "%s PMP address=" HWADDR_FMT_plx " ret %d prot"
+                          " %d tlb_size " TARGET_FMT_lu "\n",
+                          __func__, pa, ret, prot_pmp, tlb_size);
+
+            prot &= prot_pmp;
+        }
+    }
+
+    if (ret == TRANSLATE_PMP_FAIL) {
+        pmp_violation = true;
+    }
+
+    if (ret == TRANSLATE_SUCCESS) {
+        //modhere how to write a TLB entry
+        tlb_set_page(cs, address & ~(tlb_size - 1), pa & ~(tlb_size - 1),
+                     prot, mmu_idx, tlb_size);
+        return true;
+    } else if (probe) {
+        return false;
+    } else {
+        // Page Fault?
+        raise_mmu_exception(env, address, access_type, pmp_violation,
+                            first_stage_error, two_stage_lookup,
+                            two_stage_indirect_error);
+        cpu_loop_exit_restore(cs, retaddr);
+    }
+    raise_tlb_exception(env, address, access_type, pmp_violation,
+                            first_stage_error, two_stage_lookup,
+                            two_stage_indirect_error);
 
     return true;
 }
@@ -1498,6 +1683,9 @@ bool my_riscv_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
     bool two_stage_lookup = mmuidx_2stage(mmu_idx);
     bool two_stage_indirect_error = false;
 
+    //pmu_tlb_fill_incr_ctr(cpu, access_type);  
+
+    //TODO change back to tlb exception
     raise_tlb_exception(env, address, access_type, pmp_violation,
                         first_stage_error, two_stage_lookup,
                         two_stage_indirect_error);

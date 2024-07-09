@@ -1146,7 +1146,7 @@ static RISCVException write_stimecmph(CPURISCVState *env, int csrno,
 #define VSTOPI_NUM_SRCS 5
 
 #define LOCAL_INTERRUPTS (~0x1FFF)
-
+//modhere delegable exception
 static const uint64_t delegable_ints =
     S_MODE_INTERRUPTS | VS_MODE_INTERRUPTS | MIP_LCOFIP;
 static const uint64_t vs_delegable_ints =
@@ -1171,7 +1171,8 @@ static const uint64_t all_ints = M_MODE_INTERRUPTS | S_MODE_INTERRUPTS |
                          (1ULL << (RISCV_EXCP_INST_GUEST_PAGE_FAULT)) | \
                          (1ULL << (RISCV_EXCP_LOAD_GUEST_ACCESS_FAULT)) | \
                          (1ULL << (RISCV_EXCP_VIRT_INSTRUCTION_FAULT)) | \
-                         (1ULL << (RISCV_EXCP_STORE_GUEST_AMO_ACCESS_FAULT)))
+                         (1ULL << (RISCV_EXCP_STORE_GUEST_AMO_ACCESS_FAULT)) | \
+                         (1ULL << (RISCV_EXCP_TLB_MISS))) 
 static const target_ulong vs_delegable_excps = DELEGABLE_EXCPS &
     ~((1ULL << (RISCV_EXCP_S_ECALL)) |
       (1ULL << (RISCV_EXCP_VS_ECALL)) |
