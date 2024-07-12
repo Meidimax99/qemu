@@ -1379,7 +1379,6 @@ bool riscv_cpu_tlb_fill_switch(CPUState *cs, vaddr address, int size,
     bool ret = false;
     //TODO Remove hardcoded faulting address
     if(address == (uint64_t)0x88000000) {
-        printf("Using custom tlb fill routine\n");
         ret = riscv_cpu_tlb_miss_exception(cs,address,size,access_type, mmu_idx, probe, retaddr);
     } else {
         ret =  riscv_cpu_tlb_fill(cs,address,size,access_type, mmu_idx, probe, retaddr);
