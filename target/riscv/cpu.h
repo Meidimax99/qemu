@@ -533,13 +533,14 @@ bool riscv_cpu_tlb_fill_switch(CPUState *cs, vaddr address, int size,
                         MMUAccessType access_type, int mmu_idx,
                         bool probe, uintptr_t retaddr);
 
+//Original TLB fill routine
 bool riscv_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
                         MMUAccessType access_type, int mmu_idx,
                         bool probe, uintptr_t retaddr);
 
 
 //Custom TLB fill function
-bool my_riscv_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
+bool riscv_cpu_tlb_miss_exception(CPUState *cs, vaddr address, int size,
                         MMUAccessType access_type, int mmu_idx,
                         bool probe, uintptr_t retaddr);
 

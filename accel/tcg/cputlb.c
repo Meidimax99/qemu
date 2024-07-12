@@ -1425,6 +1425,7 @@ static int probe_access_internal(CPUState *cpu, vaddr addr,
     bool force_mmio = check_mem_cbs && cpu_plugin_mem_cbs_enabled(cpu);
     CPUTLBEntryFull *full;
 
+    //modhere check for tlb hit
     if (!tlb_hit_page(tlb_addr, page_addr)) {
         if (!victim_tlb_hit(cpu, mmu_idx, index, access_type, page_addr)) {
             if (!cpu->cc->tcg_ops->tlb_fill(cpu, addr, fault_size, access_type,

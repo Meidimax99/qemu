@@ -138,6 +138,7 @@ static const TCGCPUOps riscv_tcg_ops = {
 //THIS is where I could add my own tlb fill function
 #ifndef CONFIG_USER_ONLY
     //.tlb_fill = riscv_cpu_tlb_fill,
+    //modhere //This function is entered when tlb accesses miss
     .tlb_fill = riscv_cpu_tlb_fill_switch,
     .cpu_exec_interrupt = riscv_cpu_exec_interrupt,
     .do_interrupt = riscv_cpu_do_interrupt,
