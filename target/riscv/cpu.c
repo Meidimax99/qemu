@@ -202,6 +202,8 @@ const RISCVIsaExtData isa_edata_arr[] = {
     ISA_EXT_DATA_ENTRY(xtheadmempair, PRIV_VERSION_1_11_0, ext_xtheadmempair),
     ISA_EXT_DATA_ENTRY(xtheadsync, PRIV_VERSION_1_11_0, ext_xtheadsync),
     ISA_EXT_DATA_ENTRY(xventanacondops, PRIV_VERSION_1_12_0, ext_XVentanaCondOps),
+    ISA_EXT_DATA_ENTRY(softtlb, PRIV_VERSION_1_12_0, ext_softtlb),
+
 
     DEFINE_PROP_END_OF_LIST(),
 };
@@ -1549,6 +1551,10 @@ const RISCVCPUMultiExtConfig riscv_cpu_extensions[] = {
     MULTI_EXT_CFG_BOOL("zvks", ext_zvks, false),
     MULTI_EXT_CFG_BOOL("zvksc", ext_zvksc, false),
     MULTI_EXT_CFG_BOOL("zvksg", ext_zvksg, false),
+
+    /* Custom Soft TLB Extension*/
+    MULTI_EXT_CFG_BOOL("softtlb", ext_softtlb, true),
+
 
     DEFINE_PROP_END_OF_LIST(),
 };

@@ -4328,8 +4328,7 @@ static RISCVException tlbh(CPURISCVState *env, int csrno)
     return any(env, csrno);
 }
 
-static RISCVException write_tlbh(CPURISCVState *env, int csrno,
-                                     uint64_t wr_mask, target_ulong new_val)
+static RISCVException write_tlbh(CPURISCVState *env, int csrno, target_ulong new_val)
 {
     printf("tlbh write called\n");
     // uint64_t *reg;
@@ -4338,12 +4337,12 @@ static RISCVException write_tlbh(CPURISCVState *env, int csrno,
 
     //TODO write register value
 
+    env->tlbh = new_val;
     return RISCV_EXCP_NONE;
 }
 
 
-static RISCVException read_tlbh(CPURISCVState *env, int csrno,
-                                     target_ulong *val)
+static RISCVException read_tlbh(CPURISCVState *env, int csrno, target_ulong *val)
 {
     printf("tlbh read called\n");
 
@@ -4363,8 +4362,7 @@ static RISCVException tlbl(CPURISCVState *env, int csrno)
     return any(env, csrno);
 }
 
-static RISCVException write_tlbl(CPURISCVState *env, int csrno,
-                                     uint64_t wr_mask, target_ulong new_val)
+static RISCVException write_tlbl(CPURISCVState *env, int csrno, target_ulong new_val)
 {
     printf("tlbl write called\n");
 
@@ -4372,16 +4370,27 @@ static RISCVException write_tlbl(CPURISCVState *env, int csrno,
     // reg = &env->mstateen[csrno - CSR_MSTATEEN0];
     // *reg = (*reg & ~wr_mask) | (new_val & wr_mask);
 
-    //TODO write register
+    //TODO read registers
 
     //TODO fill tlb
-
+    
+    CPUState *cpu = env_cpu(env);
+    int mmu_idx = MMU_USER_IDX;
+    vaddr addr = env->tlbh;
+    if(!addr)
+        return RISCV_EXCP_ILLEGAL_INST; //TODO get from regs
+    hwaddr paddr = new_val; //TODO get from regs
+    int prot = 7; //TODO get from regs
+    uint64_t size = 4096; //TODO get (from regs???)
+    printf("calling tlb_set_page from write_tlbl\n");
+    tlb_set_page(cpu, addr, paddr, prot, mmu_idx, size);
+    env->tlbh = 0;
+    env->tlbl = 0;
     return RISCV_EXCP_NONE;
 }
 
 
-static RISCVException read_tlbl(CPURISCVState *env, int csrno,
-                                     target_ulong *val)
+static RISCVException read_tlbl(CPURISCVState *env, int csrno, target_ulong *val)
 {
     printf("tlbl read called\n");
 
