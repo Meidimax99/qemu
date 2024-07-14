@@ -4319,7 +4319,6 @@ static RISCVException rmw_seed(CPURISCVState *env, int csrno,
 //predicate -> existance check
 static RISCVException tlbh(CPURISCVState *env, int csrno)
 {
-    printf("tlbh predicate called\n");
     if (!riscv_cpu_cfg(env)->ext_softtlb) {
         printf("tlbh predicate: software tlb extension not enabled!");
         return RISCV_EXCP_ILLEGAL_INST;
@@ -4330,7 +4329,7 @@ static RISCVException tlbh(CPURISCVState *env, int csrno)
 
 static RISCVException write_tlbh(CPURISCVState *env, int csrno, target_ulong new_val)
 {
-    printf("tlbh write called\n");
+    printf("w_tlbh: 0x%lx\n", new_val);
     // uint64_t *reg;
     // reg = &env->mstateen[csrno - CSR_MSTATEEN0];
     // *reg = (*reg & ~wr_mask) | (new_val & wr_mask);
@@ -4344,8 +4343,6 @@ static RISCVException write_tlbh(CPURISCVState *env, int csrno, target_ulong new
 
 static RISCVException read_tlbh(CPURISCVState *env, int csrno, target_ulong *val)
 {
-    printf("tlbh read called\n");
-
     //*val = env->mstateen[csrno - CSR_MSTATEEN0H] >> 32;
     //Not implemented
     return RISCV_EXCP_NONE;
@@ -4353,8 +4350,6 @@ static RISCVException read_tlbh(CPURISCVState *env, int csrno, target_ulong *val
 
 static RISCVException tlbl(CPURISCVState *env, int csrno)
 {
-    printf("tlbl predicate called\n");
-
     if (!riscv_cpu_cfg(env)->ext_softtlb) {
         printf("tlbh predicate: software tlb extension not enabled!");
         return RISCV_EXCP_ILLEGAL_INST;
@@ -4364,8 +4359,7 @@ static RISCVException tlbl(CPURISCVState *env, int csrno)
 
 static RISCVException write_tlbl(CPURISCVState *env, int csrno, target_ulong new_val)
 {
-    printf("tlbl write called\n");
-
+    printf("w_tlbl: 0x%lx\n", new_val);
     // uint64_t *reg;
     // reg = &env->mstateen[csrno - CSR_MSTATEEN0];
     // *reg = (*reg & ~wr_mask) | (new_val & wr_mask);
@@ -4382,7 +4376,6 @@ static RISCVException write_tlbl(CPURISCVState *env, int csrno, target_ulong new
     hwaddr paddr = new_val; //TODO get from regs
     int prot = 7; //TODO get from regs
     uint64_t size = 4096; //TODO get (from regs???)
-    printf("calling tlb_set_page from write_tlbl\n");
     tlb_set_page(cpu, addr, paddr, prot, mmu_idx, size);
     env->tlbh = 0;
     env->tlbl = 0;
@@ -4392,8 +4385,6 @@ static RISCVException write_tlbl(CPURISCVState *env, int csrno, target_ulong new
 
 static RISCVException read_tlbl(CPURISCVState *env, int csrno, target_ulong *val)
 {
-    printf("tlbl read called\n");
-
     //Not implemented
     //*val = env->mstateen[csrno - CSR_MSTATEEN0H] >> 32;
 

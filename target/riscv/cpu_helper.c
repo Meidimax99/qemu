@@ -1533,7 +1533,6 @@ bool riscv_cpu_tlb_miss_exception(CPUState *cs, vaddr address, int size,
 
     RISCVCPU *cpu = RISCV_CPU(cs);
     CPURISCVState *env = &cpu->env;
-    printf("User satp: 0x%lx\n", env->satp);
     bool pmp_violation = false;
     bool first_stage_error = true;
     bool two_stage_lookup = mmuidx_2stage(mmu_idx);
