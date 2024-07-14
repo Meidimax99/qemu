@@ -310,6 +310,11 @@
 #define CSR_MSTATEEN3       0x30F
 #define CSR_MSTATEEN3H      0x31F
 
+
+//modhere custom csrs
+#define CSR_TLB_FILLH       0xBEE
+#define CSR_TLB_FILLL       0xBFF
+
 /* Common defines for all smstateen */
 #define SMSTATEEN_MAX_COUNT 4
 #define SMSTATEEN0_CS       (1ULL << 0)

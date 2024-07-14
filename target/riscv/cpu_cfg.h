@@ -162,6 +162,9 @@ struct RISCVCPUConfig {
     bool debug;
     bool misa_w;
 
+    //modhere tlb extension -> where is this set to true?
+    bool ext_softtlb;
+
     bool short_isa_string;
 
 #ifndef CONFIG_USER_ONLY

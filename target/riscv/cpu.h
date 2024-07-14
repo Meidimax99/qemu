@@ -419,6 +419,12 @@ struct CPUArchState {
     uint64_t sstateen[SMSTATEEN_MAX_COUNT];
     target_ulong senvcfg;
     uint64_t henvcfg;
+
+    //modhere custom csr regs in cpu arch
+
+    //TODO 32 Bit?
+    uint64_t tlbh;
+    uint64_t tlbl;
 #endif
     target_ulong cur_pmmask;
     target_ulong cur_pmbase;

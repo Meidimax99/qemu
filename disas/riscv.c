@@ -2346,6 +2346,8 @@ static const char *csr_name(int csrno)
     case 0x0b9d: return "mhpmcounter29h";
     case 0x0b9e: return "mhpmcounter30h";
     case 0x0b9f: return "mhpmcounter31h";
+    case 0x0bee: return "tlbh";
+    case 0x0bff: return "tlbl"; 
     case 0x0c00: return "cycle";
     case 0x0c01: return "time";
     case 0x0c02: return "instret";

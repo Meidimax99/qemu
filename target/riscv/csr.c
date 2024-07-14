@@ -4312,6 +4312,96 @@ static RISCVException rmw_seed(CPURISCVState *env, int csrno,
     return RISCV_EXCP_NONE;
 }
 
+//modhere tlb csr callback functions
+//TODO function interfaces correct?
+//TODO how are these called from qemu?
+
+//predicate -> existance check
+static RISCVException tlbh(CPURISCVState *env, int csrno)
+{
+    printf("tlbh predicate called\n");
+    if (!riscv_cpu_cfg(env)->ext_softtlb) {
+        printf("tlbh predicate: software tlb extension not enabled!");
+        return RISCV_EXCP_ILLEGAL_INST;
+    }
+
+    return any(env, csrno);
+}
+
+static RISCVException write_tlbh(CPURISCVState *env, int csrno,
+                                     uint64_t wr_mask, target_ulong new_val)
+{
+    printf("tlbh write called\n");
+    // uint64_t *reg;
+    // reg = &env->mstateen[csrno - CSR_MSTATEEN0];
+    // *reg = (*reg & ~wr_mask) | (new_val & wr_mask);
+
+    //TODO write register value
+
+    return RISCV_EXCP_NONE;
+}
+
+
+static RISCVException read_tlbh(CPURISCVState *env, int csrno,
+                                     target_ulong *val)
+{
+    printf("tlbh read called\n");
+
+    //*val = env->mstateen[csrno - CSR_MSTATEEN0H] >> 32;
+    //Not implemented
+    return RISCV_EXCP_NONE;
+}
+
+static RISCVException tlbl(CPURISCVState *env, int csrno)
+{
+    printf("tlbl predicate called\n");
+
+    if (!riscv_cpu_cfg(env)->ext_softtlb) {
+        printf("tlbh predicate: software tlb extension not enabled!");
+        return RISCV_EXCP_ILLEGAL_INST;
+    }
+    return any(env, csrno);
+}
+
+static RISCVException write_tlbl(CPURISCVState *env, int csrno,
+                                     uint64_t wr_mask, target_ulong new_val)
+{
+    printf("tlbl write called\n");
+
+    // uint64_t *reg;
+    // reg = &env->mstateen[csrno - CSR_MSTATEEN0];
+    // *reg = (*reg & ~wr_mask) | (new_val & wr_mask);
+
+    //TODO write register
+
+    //TODO fill tlb
+
+    return RISCV_EXCP_NONE;
+}
+
+
+static RISCVException read_tlbl(CPURISCVState *env, int csrno,
+                                     target_ulong *val)
+{
+    printf("tlbl read called\n");
+
+    //Not implemented
+    //*val = env->mstateen[csrno - CSR_MSTATEEN0H] >> 32;
+
+    return RISCV_EXCP_NONE;
+}
+
+
+//Combined read/write op
+// 
+// static RISCVException tlbh_op(CPURISCVState *env, int csrno,
+                                // target_ulong *ret_value,
+                                // target_ulong new_value,
+                                // target_ulong write_mask) 
+// {
+    // return RISCV_EXCP_NONE;
+// }
+
 /*
  * riscv_csrrw - read and/or update control and status register
  *
@@ -4384,6 +4474,7 @@ static inline RISCVException riscv_csrrw_check(CPURISCVState *env,
     return RISCV_EXCP_NONE;
 }
 
+//modhere csr function caller
 static RISCVException riscv_csrrw_do64(CPURISCVState *env, int csrno,
                                        target_ulong *ret_value,
                                        target_ulong new_value,
@@ -4717,6 +4808,25 @@ riscv_csr_operations csr_ops[CSR_TABLE_SIZE] = {
     [CSR_SSTATEEN3] = { "sstateen3", sstateen, read_sstateen,
                         write_sstateen_1_3,
                         .min_priv_ver = PRIV_VERSION_1_12_0 },
+
+    //modhere custom csrs
+    /* Needs a riscv_csr_operations struct consisting of:*/
+    /*
+        - name of the csr
+        - predicate to be called ??
+        - read function
+        - op function
+        - write function
+        - read 128 function ?
+        - write 128 function?
+        - minimung priv version 
+
+    functions are defined here in csr.c
+
+    */
+    [CSR_TLB_FILLH] = {"tlbh", tlbh, read_tlbh, write_tlbh, .min_priv_ver = PRIV_VERSION_1_12_0 },
+    [CSR_TLB_FILLL] = {"tlbl", tlbl, read_tlbl, write_tlbl, .min_priv_ver = PRIV_VERSION_1_12_0 },
+
 
     /* Supervisor Trap Setup */
     [CSR_SSTATUS]    = { "sstatus",    smode, read_sstatus,    write_sstatus,
