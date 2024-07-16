@@ -243,33 +243,37 @@ void hmp_info_mem(Monitor *mon, const QDict *qdict)
 
 static void print_tlb_entry(Monitor *mon, CPUTLBEntryFull *entry)
 {
-    (void)mon;
-    (void)mon;
-    /*
-    monitor_printf(mon,  "0x%016lx: 0x%016lx" 
-                   " %c%c%c%c%c%c%c%c%c\n",
-                   addr,
-                   pte & mask,
-                   pte & PG_NX_MASK ? 'X' : '-',
-                   pte & PG_GLOBAL_MASK ? 'G' : '-',
-                   pte & PG_PSE_MASK ? 'P' : '-',
-                   pte & PG_DIRTY_MASK ? 'D' : '-',
-                   pte & PG_ACCESSED_MASK ? 'A' : '-',
-                   pte & PG_PCD_MASK ? 'C' : '-',
-                   pte & PG_PWT_MASK ? 'T' : '-',
-                   pte & PG_USER_MASK ? 'U' : '-',
-                   pte & PG_RW_MASK ? 'W' : '-');*/
+    if(entry->phys_addr || entry->extra.vaddr) {
+        monitor_printf(mon,  "0x%016lx: 0x%016lx" 
+                      " %c%c%c%c%c%c%c%c\n",
+                      entry->phys_addr,
+                      entry->extra.vaddr,
+                      entry->prot & 0x80 ? 'D' : '-',
+                      entry->prot & 0x40 ? 'A' : '-',
+                      entry->prot & 0x20 ? 'G' : '-',
+                      entry->prot & 0x10 ? 'U' : '-',
+                      entry->prot & 0x08 ? 'X' : '-',
+                      entry->prot & 0x04 ? 'W' : '-',
+                      entry->prot & 0x02 ? 'R' : '-',
+                      entry->prot & 0x01 ? 'V' : '-');
+    }
 }
 
 static void print_tlb_entries(Monitor *mon, CPUState *cpu) {
 
-    CPUTLBDesc *desc = &cpu->neg.tlb.d[MMU_USER_IDX];
-    CPUTLBEntryFull *arr = desc->fulltlb;
 
-    for (size_t i = 0; i < desc->n_used_entries; i++)
-    {
-        print_tlb_entry(mon, &arr[i]);
+    for (size_t i = 0; i <= 3; i++)
+    {   
+
+        CPUTLBDesc *desc = &cpu->neg.tlb.d[i];
+        CPUTLBEntryFull *arr = desc->fulltlb;
+        monitor_printf(mon, "mmu_idx = %ld\n", i);
+        for (size_t j = 0; j < desc->window_max_entries; j++)
+        {
+            print_tlb_entry(mon, &arr[j]);
+        }
     }
+    
     
 }
 
@@ -282,9 +286,6 @@ void hmp_info_tlb(Monitor *mon, const QDict *qdict)
         monitor_printf(mon, "No CPU available\n");
         return;
     }
-
-
-    monitor_printf(mon, "Hello from the riscv tlb monitor!\n");
 
     CPUState *cpu = mon_get_cpu(mon);
 

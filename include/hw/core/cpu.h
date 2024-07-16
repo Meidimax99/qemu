@@ -258,6 +258,10 @@ typedef struct CPUTLBEntryFull {
             uint8_t shareability;
             bool guarded;
         } arm;
+
+        //modhere save physical address for debugging purposes
+        //TODO may not be written when using tlb fast path -> how to disable?
+        vaddr vaddr;
     } extra;
 } CPUTLBEntryFull;
 

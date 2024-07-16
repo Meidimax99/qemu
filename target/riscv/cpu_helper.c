@@ -1371,18 +1371,20 @@ bool address_in_trapframe(vaddr address) {
 }
 
 
-
 bool riscv_cpu_tlb_fill_switch(CPUState *cs, vaddr address, int size,
                         MMUAccessType access_type, int mmu_idx,
                         bool probe, uintptr_t retaddr)
 {
+
     bool ret = false;
     //TODO Remove hardcoded faulting address
     //TODO this is used to let the rest of the system work as usual while I first try to implement 
     //swtlbmisshandling for this specific address
-    if(address == (uint64_t)0x88000000) {
+    if(address == (uint64_t)0x87fff000) {
+        printf("using custom tlb miss handler for vaddr 0x%lx\n", address);
         ret = riscv_cpu_tlb_miss_exception(cs,address,size,access_type, mmu_idx, probe, retaddr);
     } else {
+        printf("using normal handler for vaddr 0x%lx\n", address);
         ret =  riscv_cpu_tlb_fill(cs,address,size,access_type, mmu_idx, probe, retaddr);
     }
     return ret;

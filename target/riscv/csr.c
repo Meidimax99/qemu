@@ -4371,8 +4371,10 @@ static RISCVException write_tlbl(CPURISCVState *env, int csrno, target_ulong new
     CPUState *cpu = env_cpu(env);
     int mmu_idx = MMU_USER_IDX;
     vaddr addr = env->tlbh;
-    if(!addr)
+    if(!addr) {
+        printf("ALARM-------------\n");
         return RISCV_EXCP_ILLEGAL_INST; //TODO get from regs
+    }
     hwaddr paddr = new_val; //TODO get from regs
     int prot = 7; //TODO get from regs
     uint64_t size = 4096; //TODO get (from regs???)

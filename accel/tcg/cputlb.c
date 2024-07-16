@@ -1272,6 +1272,27 @@ void tlb_set_page_full(CPUState *cpu, int mmu_idx,
     qemu_spin_unlock(&tlb->c.lock);
 }
 
+//TODO REMOVE
+
+static void print_tlb_entry(CPUTLBEntryFull *entry)
+{
+    
+    printf("0x%016lx: 0x%016lx" 
+                   " %c%c%c%c%c%c%c%c\n",
+                   entry->phys_addr,
+                   entry->extra.vaddr,
+                   entry->prot & 0x80 ? 'D' : '-',
+                   entry->prot & 0x40 ? 'A' : '-',
+                   entry->prot & 0x20 ? 'G' : '-',
+                   entry->prot & 0x10 ? 'U' : '-',
+                   entry->prot & 0x08 ? 'X' : '-',
+                   entry->prot & 0x04 ? 'W' : '-',
+                   entry->prot & 0x02 ? 'R' : '-',
+                   entry->prot & 0x01 ? 'V' : '-');
+}
+
+//END REMOVE
+
 void tlb_set_page_with_attrs(CPUState *cpu, vaddr addr,
                              hwaddr paddr, MemTxAttrs attrs, int prot,
                              int mmu_idx, uint64_t size)
@@ -1282,7 +1303,10 @@ void tlb_set_page_with_attrs(CPUState *cpu, vaddr addr,
         .prot = prot,
         .lg_page_size = ctz64(size)
     };
-
+    //modhere adding extra field for debugging purposes
+    full.extra.vaddr = addr;
+    printf("New entry:\n");
+    print_tlb_entry(&full);
     assert(is_power_of_2(size));
     tlb_set_page_full(cpu, mmu_idx, addr, &full);
 }
@@ -1703,8 +1727,7 @@ static bool mmu_lookup1(CPUState *cpu, MMULookupPageData *data,
                         int mmu_idx, MMUAccessType access_type, uintptr_t ra)
 {
     vaddr addr = data->addr;
-    if(addr == (uint64_t)0x88000000)
-        printf("mmu_lookup1: HERE!\n");
+    printf("Looking up vaddr 0x%lx\n", addr);
     uintptr_t index = tlb_index(cpu, mmu_idx, addr);
     CPUTLBEntry *entry = tlb_entry(cpu, mmu_idx, addr);
     uint64_t tlb_addr = tlb_read_idx(entry, access_type);
@@ -1714,8 +1737,11 @@ static bool mmu_lookup1(CPUState *cpu, MMULookupPageData *data,
 
     /* If the TLB entry is for a different page, reload and try again.  */
     if (!tlb_hit(tlb_addr, addr)) {
+        printf("vaddr 0x%lx not found in tlb\n", addr);
+        
         if (!victim_tlb_hit(cpu, mmu_idx, index, access_type,
                             addr & TARGET_PAGE_MASK)) {
+            printf("vaddr 0x%lx not found in victim tlb\n", addr);
             tlb_fill(cpu, addr, data->size, access_type, mmu_idx, ra);
             maybe_resized = true;
             index = tlb_index(cpu, mmu_idx, addr);
