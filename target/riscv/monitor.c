@@ -237,3 +237,57 @@ void hmp_info_mem(Monitor *mon, const QDict *qdict)
 
     mem_info_svxx(mon, env);
 }
+//modhere implementation of riscv tlb info monitor
+
+
+
+static void print_tlb_entry(Monitor *mon, CPUTLBEntryFull *entry)
+{
+    (void)mon;
+    (void)mon;
+    /*
+    monitor_printf(mon,  "0x%016lx: 0x%016lx" 
+                   " %c%c%c%c%c%c%c%c%c\n",
+                   addr,
+                   pte & mask,
+                   pte & PG_NX_MASK ? 'X' : '-',
+                   pte & PG_GLOBAL_MASK ? 'G' : '-',
+                   pte & PG_PSE_MASK ? 'P' : '-',
+                   pte & PG_DIRTY_MASK ? 'D' : '-',
+                   pte & PG_ACCESSED_MASK ? 'A' : '-',
+                   pte & PG_PCD_MASK ? 'C' : '-',
+                   pte & PG_PWT_MASK ? 'T' : '-',
+                   pte & PG_USER_MASK ? 'U' : '-',
+                   pte & PG_RW_MASK ? 'W' : '-');*/
+}
+
+static void print_tlb_entries(Monitor *mon, CPUState *cpu) {
+
+    CPUTLBDesc *desc = &cpu->neg.tlb.d[MMU_USER_IDX];
+    CPUTLBEntryFull *arr = desc->fulltlb;
+
+    for (size_t i = 0; i < desc->n_used_entries; i++)
+    {
+        print_tlb_entry(mon, &arr[i]);
+    }
+    
+}
+
+
+void hmp_info_tlb(Monitor *mon, const QDict *qdict)
+{
+    CPUArchState *env1 = mon_get_cpu_env(mon);
+
+    if (!env1) {
+        monitor_printf(mon, "No CPU available\n");
+        return;
+    }
+
+
+    monitor_printf(mon, "Hello from the riscv tlb monitor!\n");
+
+    CPUState *cpu = mon_get_cpu(mon);
+
+    print_tlb_entries(mon, cpu);
+
+}

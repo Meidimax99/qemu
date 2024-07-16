@@ -1288,6 +1288,7 @@ void tlb_set_page_with_attrs(CPUState *cpu, vaddr addr,
 }
 
 //modhere tlb_set_page function
+//Gets even called before virtual memory is active??
 void tlb_set_page(CPUState *cpu, vaddr addr,
                   hwaddr paddr, int prot,
                   int mmu_idx, uint64_t size)
@@ -1419,7 +1420,8 @@ static int probe_access_internal(CPUState *cpu, vaddr addr,
                                  uintptr_t retaddr, bool check_mem_cbs)
 {
     if(addr == (uint64_t)0x88000000)
-        printf("HERE!\n");
+        printf("probe_access_internal: HERE!\n");
+    //TODO single step here
     uintptr_t index = tlb_index(cpu, mmu_idx, addr);
     CPUTLBEntry *entry = tlb_entry(cpu, mmu_idx, addr);
     uint64_t tlb_addr = tlb_read_idx(entry, access_type);
@@ -1696,10 +1698,13 @@ typedef struct MMULookupLocals {
  * tlb_fill will longjmp out.  Return true if the softmmu tlb for
  * @mmu_idx may have resized.
  */
+//modhere mmu lookup
 static bool mmu_lookup1(CPUState *cpu, MMULookupPageData *data,
                         int mmu_idx, MMUAccessType access_type, uintptr_t ra)
 {
     vaddr addr = data->addr;
+    if(addr == (uint64_t)0x88000000)
+        printf("mmu_lookup1: HERE!\n");
     uintptr_t index = tlb_index(cpu, mmu_idx, addr);
     CPUTLBEntry *entry = tlb_entry(cpu, mmu_idx, addr);
     uint64_t tlb_addr = tlb_read_idx(entry, access_type);

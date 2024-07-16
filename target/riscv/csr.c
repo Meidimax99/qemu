@@ -4379,6 +4379,9 @@ static RISCVException write_tlbl(CPURISCVState *env, int csrno, target_ulong new
     tlb_set_page(cpu, addr, paddr, prot, mmu_idx, size);
     env->tlbh = 0;
     env->tlbl = 0;
+
+    //TODO print entire tlb state
+    
     return RISCV_EXCP_NONE;
 }
 
