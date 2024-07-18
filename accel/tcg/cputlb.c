@@ -45,8 +45,8 @@
 #include "tcg/oversized-guest.h"
 
 /* DEBUG defines, enable DEBUG_TLB_LOG to log to the CPU_LOG_MMU target */
-/* #define DEBUG_TLB */
-/* #define DEBUG_TLB_LOG */
+#define DEBUG_TLB
+#define DEBUG_TLB_LOG
 
 #ifdef DEBUG_TLB
 # define DEBUG_TLB_GATE 1
@@ -1110,7 +1110,7 @@ static inline void tlb_set_compare(CPUTLBEntryFull *full, CPUTLBEntry *ent,
  * Called from TCG-generated code, which is under an RCU read-side
  * critical section.
  */
-void tlb_set_page_full(CPUState *cpu, int mmu_idx,
+void    tlb_set_page_full(CPUState *cpu, int mmu_idx,
                        vaddr addr, CPUTLBEntryFull *full)
 {
     CPUTLB *tlb = &cpu->neg.tlb;
@@ -1274,6 +1274,7 @@ void tlb_set_page_full(CPUState *cpu, int mmu_idx,
 
 //TODO REMOVE
 
+#ifdef PRINTLOGS
 static void print_tlb_entry(CPUTLBEntryFull *entry)
 {
     
@@ -1291,6 +1292,7 @@ static void print_tlb_entry(CPUTLBEntryFull *entry)
                    entry->prot & 0x01 ? 'V' : '-');
 }
 
+#endif
 //END REMOVE
 
 void tlb_set_page_with_attrs(CPUState *cpu, vaddr addr,
@@ -1305,10 +1307,12 @@ void tlb_set_page_with_attrs(CPUState *cpu, vaddr addr,
     };
     //modhere adding extra field for debugging purposes
     full.extra.vaddr = addr;
-    printf("New entry:\n");
-    print_tlb_entry(&full);
     assert(is_power_of_2(size));
     tlb_set_page_full(cpu, mmu_idx, addr, &full);
+    #ifdef PRINTLOGS
+    printf("New entry:\n");
+    print_tlb_entry(&full);
+    #endif
 }
 
 //modhere tlb_set_page function
@@ -1443,8 +1447,10 @@ static int probe_access_internal(CPUState *cpu, vaddr addr,
                                  void **phost, CPUTLBEntryFull **pfull,
                                  uintptr_t retaddr, bool check_mem_cbs)
 {
+    #ifdef PRINTLOGS
     if(addr == (uint64_t)0x88000000)
         printf("probe_access_internal: HERE!\n");
+    #endif
     //TODO single step here
     uintptr_t index = tlb_index(cpu, mmu_idx, addr);
     CPUTLBEntry *entry = tlb_entry(cpu, mmu_idx, addr);
@@ -1727,7 +1733,9 @@ static bool mmu_lookup1(CPUState *cpu, MMULookupPageData *data,
                         int mmu_idx, MMUAccessType access_type, uintptr_t ra)
 {
     vaddr addr = data->addr;
+    #ifdef PRINTLOGS
     printf("Looking up vaddr 0x%lx\n", addr);
+    #endif
     uintptr_t index = tlb_index(cpu, mmu_idx, addr);
     CPUTLBEntry *entry = tlb_entry(cpu, mmu_idx, addr);
     uint64_t tlb_addr = tlb_read_idx(entry, access_type);
@@ -1737,11 +1745,14 @@ static bool mmu_lookup1(CPUState *cpu, MMULookupPageData *data,
 
     /* If the TLB entry is for a different page, reload and try again.  */
     if (!tlb_hit(tlb_addr, addr)) {
+        #ifdef PRINTLOGS
         printf("vaddr 0x%lx not found in tlb\n", addr);
-        
+        #endif
         if (!victim_tlb_hit(cpu, mmu_idx, index, access_type,
                             addr & TARGET_PAGE_MASK)) {
+            #ifdef PRINTLOGS
             printf("vaddr 0x%lx not found in victim tlb\n", addr);
+            #endif
             tlb_fill(cpu, addr, data->size, access_type, mmu_idx, ra);
             maybe_resized = true;
             index = tlb_index(cpu, mmu_idx, addr);

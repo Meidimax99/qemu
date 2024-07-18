@@ -4329,7 +4329,9 @@ static RISCVException tlbh(CPURISCVState *env, int csrno)
 
 static RISCVException write_tlbh(CPURISCVState *env, int csrno, target_ulong new_val)
 {
+    #ifdef PRINTLOGS
     printf("w_tlbh: 0x%lx\n", new_val);
+    #endif
     // uint64_t *reg;
     // reg = &env->mstateen[csrno - CSR_MSTATEEN0];
     // *reg = (*reg & ~wr_mask) | (new_val & wr_mask);
@@ -4359,7 +4361,9 @@ static RISCVException tlbl(CPURISCVState *env, int csrno)
 
 static RISCVException write_tlbl(CPURISCVState *env, int csrno, target_ulong new_val)
 {
+    #ifdef PRINTLOGS
     printf("w_tlbl: 0x%lx\n", new_val);
+    #endif
     // uint64_t *reg;
     // reg = &env->mstateen[csrno - CSR_MSTATEEN0];
     // *reg = (*reg & ~wr_mask) | (new_val & wr_mask);
@@ -4367,18 +4371,19 @@ static RISCVException write_tlbl(CPURISCVState *env, int csrno, target_ulong new
     //TODO read registers
 
     //TODO fill tlb
+    target_ulong tlb_size = TARGET_PAGE_SIZE;
     
     CPUState *cpu = env_cpu(env);
-    int mmu_idx = MMU_USER_IDX;
     vaddr addr = env->tlbh;
-    if(!addr) {
-        printf("ALARM-------------\n");
-        return RISCV_EXCP_ILLEGAL_INST; //TODO get from regs
-    }
     hwaddr paddr = new_val; //TODO get from regs
+    //int mmu_idx = riscv_env_mmu_index(env, true);
+    int mmu_idx = addr & (tlb_size - 1);
+    // if(!addr) {
+        // return RISCV_EXCP_ILLEGAL_INST; //TODO get from regs
+    // }
     int prot = 7; //TODO get from regs
-    uint64_t size = 4096; //TODO get (from regs???)
-    tlb_set_page(cpu, addr, paddr, prot, mmu_idx, size);
+
+    tlb_set_page(cpu, addr & ~(tlb_size - 1), paddr & ~(tlb_size - 1), prot, mmu_idx, tlb_size);
     env->tlbh = 0;
     env->tlbl = 0;
 

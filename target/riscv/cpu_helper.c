@@ -1237,12 +1237,14 @@ static void raise_tlb_exception(CPURISCVState *env, target_ulong address,
                                 MMUAccessType access_type,
                                 /*unnecessary?*/ bool pmp_violation,
                                 bool first_stage, bool two_stage,
-                                bool two_stage_indirect) {
+                                bool two_stage_indirect, uint8_t mmu_idx) {
     CPUState *cs = env_cpu(env);
 
     cs->exception_index = RISCV_EXCP_TLB_MISS;
 
-    env->badaddr = address;
+    //Embedd mmu_idx in mtval 
+    //TODO does this make any sense at all?
+    env->badaddr = ( address & ~( (1 << 12) - 1)) | mmu_idx;
     env->two_stage_lookup = two_stage;
     env->two_stage_indirect_lookup = two_stage_indirect;
 }
@@ -1381,10 +1383,14 @@ bool riscv_cpu_tlb_fill_switch(CPUState *cs, vaddr address, int size,
     //TODO this is used to let the rest of the system work as usual while I first try to implement 
     //swtlbmisshandling for this specific address
     if(address == (uint64_t)0x87fff000) {
+        #ifdef PRINTLOGS
         printf("using custom tlb miss handler for vaddr 0x%lx\n", address);
+        #endif
         ret = riscv_cpu_tlb_miss_exception(cs,address,size,access_type, mmu_idx, probe, retaddr);
     } else {
+        #ifdef PRINTLOGS
         printf("using normal handler for vaddr 0x%lx\n", address);
+        #endif
         ret =  riscv_cpu_tlb_fill(cs,address,size,access_type, mmu_idx, probe, retaddr);
     }
     return ret;
@@ -1547,7 +1553,7 @@ bool riscv_cpu_tlb_miss_exception(CPUState *cs, vaddr address, int size,
     //TODO change back to tlb exception
     raise_tlb_exception(env, address, access_type, pmp_violation,
                         first_stage_error, two_stage_lookup,
-                        two_stage_indirect_error);
+                        two_stage_indirect_error, (uint8_t)mmu_idx);
     cpu_loop_exit_restore(cs, retaddr);
     return true;
 }
