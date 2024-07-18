@@ -829,7 +829,7 @@ static int get_physical_address(CPURISCVState *env, hwaddr *physical,
     }
 
     /*
-     * If in machine mode or if the mmu is disabled the virtual
+     * If in machine mode or if the mmu is disabled the physical
      * address is equal to the virtual
      */
     if (mode == PRV_M || !riscv_cpu_cfg(env)->mmu) {
@@ -1377,12 +1377,16 @@ bool riscv_cpu_tlb_fill_switch(CPUState *cs, vaddr address, int size,
                         MMUAccessType access_type, int mmu_idx,
                         bool probe, uintptr_t retaddr)
 {
-
+    RISCVCPU *cpu = RISCV_CPU(cs);
+    CPURISCVState *env = &cpu->env;
+    int mode = mmuidx_priv(mmu_idx);
+    //TODO Use switch case from cpu_helper:850 in get_physical_address()
+    int vm = get_field(env->satp, SATP64_MODE);
     bool ret = false;
     //TODO Remove hardcoded faulting address
     //TODO this is used to let the rest of the system work as usual while I first try to implement 
     //swtlbmisshandling for this specific address
-    if(address == (uint64_t)0x87fff000) {
+    if( !(vm == VM_1_10_MBARE || mode == PRV_M) && address == (uint64_t)0x84fff000) {
         #ifdef PRINTLOGS
         printf("using custom tlb miss handler for vaddr 0x%lx\n", address);
         #endif

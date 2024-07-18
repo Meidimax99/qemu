@@ -243,7 +243,7 @@ void hmp_info_mem(Monitor *mon, const QDict *qdict)
 
 static void print_tlb_entry(Monitor *mon, CPUTLBEntryFull *entry, size_t index)
 {
-    if(entry->phys_addr || entry->extra.vaddr) {
+    //if(entry->phys_addr || entry->extra.vaddr) {
         monitor_printf(mon,  "%ld: 0x%016lx: 0x%016lx" 
                       " %c%c%c%c%c%c%c%c\n", index,
                       entry->phys_addr,
@@ -256,7 +256,7 @@ static void print_tlb_entry(Monitor *mon, CPUTLBEntryFull *entry, size_t index)
                       entry->prot & 0x04 ? 'W' : '-',
                       entry->prot & 0x02 ? 'R' : '-',
                       entry->prot & 0x01 ? 'V' : '-');
-    }
+    //}
 }
 
 static void print_tlb_entries(Monitor *mon, CPUState *cpu) {
