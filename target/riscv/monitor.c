@@ -243,7 +243,7 @@ void hmp_info_mem(Monitor *mon, const QDict *qdict)
 
 static void print_tlb_entry(Monitor *mon, CPUTLBEntryFull *entry, size_t index)
 {
-    //if(entry->phys_addr || entry->extra.vaddr) {
+    if(entry->phys_addr || entry->extra.vaddr) {
         monitor_printf(mon,  "%ld: 0x%016lx: 0x%016lx" 
                       " %c%c%c%c%c%c%c%c\n", index,
                       entry->extra.vaddr,
@@ -256,26 +256,22 @@ static void print_tlb_entry(Monitor *mon, CPUTLBEntryFull *entry, size_t index)
                       entry->prot & 0x04 ? 'W' : '-',
                       entry->prot & 0x02 ? 'R' : '-',
                       entry->prot & 0x01 ? 'V' : '-');
-    //}
+
+    }
 }
 
 static void print_tlb_entries(Monitor *mon, CPUState *cpu) {
 
-
-    for (size_t i = 0; i <= 3; i++)
-    {   
-
-        CPUTLBDesc *desc = &cpu->neg.tlb.d[i];
-        CPUTLBDescFast *fast = &cpu->neg.tlb.f[i];
-        size_t n_entries = ( fast->mask >> CPU_TLB_ENTRY_BITS ) +1;
-        CPUTLBEntryFull *arr = desc->fulltlb;
-        monitor_printf(mon, "mmu_idx = %ld\n", i);
-        for (size_t j = 0; j < n_entries; j++)
-        {
-            print_tlb_entry(mon, &arr[j], j);
-        }
+    size_t cpu_index = monitor_get_cpu_index(mon);
+    CPUTLBDesc *desc = &cpu->neg.tlb.d[cpu_index];
+    CPUTLBDescFast *fast = &cpu->neg.tlb.f[cpu_index];
+    size_t n_entries = ( fast->mask >> CPU_TLB_ENTRY_BITS ) +1;
+    CPUTLBEntryFull *arr = desc->fulltlb;
+    monitor_printf(mon, "mmu_idx = %ld\n", cpu_index);
+    for (size_t j = 0; j < n_entries; j++)
+    {
+        print_tlb_entry(mon, &arr[j], j);
     }
-    
     
 }
 
