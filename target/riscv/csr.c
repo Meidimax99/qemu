@@ -4359,6 +4359,7 @@ static RISCVException tlbl(CPURISCVState *env, int csrno)
     return any(env, csrno);
 }
 
+
 static RISCVException write_tlbl(CPURISCVState *env, int csrno, target_ulong new_val)
 {
     #ifdef PRINTLOGS
@@ -4386,6 +4387,8 @@ static RISCVException write_tlbl(CPURISCVState *env, int csrno, target_ulong new
     tlb_set_page(cpu, addr & ~(tlb_size - 1), paddr & ~(tlb_size - 1), prot, mmu_idx, tlb_size);
     env->tlbh = 0;
     env->tlbl = 0;
+
+
 
     //TODO print entire tlb state
     

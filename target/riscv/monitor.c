@@ -246,8 +246,8 @@ static void print_tlb_entry(Monitor *mon, CPUTLBEntryFull *entry, size_t index)
     //if(entry->phys_addr || entry->extra.vaddr) {
         monitor_printf(mon,  "%ld: 0x%016lx: 0x%016lx" 
                       " %c%c%c%c%c%c%c%c\n", index,
-                      entry->phys_addr,
                       entry->extra.vaddr,
+                      entry->phys_addr,
                       entry->prot & 0x80 ? 'D' : '-',
                       entry->prot & 0x40 ? 'A' : '-',
                       entry->prot & 0x20 ? 'G' : '-',
@@ -266,9 +266,11 @@ static void print_tlb_entries(Monitor *mon, CPUState *cpu) {
     {   
 
         CPUTLBDesc *desc = &cpu->neg.tlb.d[i];
+        CPUTLBDescFast *fast = &cpu->neg.tlb.f[i];
+        size_t n_entries = ( fast->mask >> CPU_TLB_ENTRY_BITS ) +1;
         CPUTLBEntryFull *arr = desc->fulltlb;
         monitor_printf(mon, "mmu_idx = %ld\n", i);
-        for (size_t j = 0; j < desc->window_max_entries; j++)
+        for (size_t j = 0; j < n_entries; j++)
         {
             print_tlb_entry(mon, &arr[j], j);
         }

@@ -102,6 +102,7 @@ static void tlb_window_reset(CPUTLBDesc *desc, int64_t ns,
     desc->window_max_entries = max_entries;
 }
 
+
 static void tb_jmp_cache_clear_page(CPUState *cpu, vaddr page_addr)
 {
     CPUJumpCache *jc = cpu->tb_jmp_cache;
@@ -1204,6 +1205,7 @@ void    tlb_set_page_full(CPUState *cpu, int mmu_idx,
      * a longer critical section, but this is not a concern since the TLB lock
      * is unlikely to be contended.
      */
+    
     qemu_spin_lock(&tlb->c.lock);
 
     /* Note that the tlb is no longer clean.  */
@@ -1715,6 +1717,8 @@ typedef struct MMULookupLocals {
     int mmu_idx;
 } MMULookupLocals;
 
+
+
 /**
  * mmu_lookup1: translate one page
  * @cpu: generic cpu state
@@ -1760,6 +1764,7 @@ static bool mmu_lookup1(CPUState *cpu, MMULookupPageData *data,
         }
         tlb_addr = tlb_read_idx(entry, access_type) & ~TLB_INVALID_MASK;
     }
+
 
     full = &cpu->neg.tlb.d[mmu_idx].fulltlb[index];
     flags = tlb_addr & (TLB_FLAGS_MASK & ~TLB_FORCE_SLOW);
