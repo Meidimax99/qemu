@@ -4359,39 +4359,35 @@ static RISCVException tlbl(CPURISCVState *env, int csrno)
     return any(env, csrno);
 }
 
+//modhere tlb csrs format
 
-static RISCVException write_tlbl(CPURISCVState *env, int csrno, target_ulong new_val)
+
+static RISCVException write_tlbl(CPURISCVState *env, int csrno, target_ulong pte)
 {
-    #ifdef PRINTLOGS
-    printf("w_tlbl: 0x%lx\n", new_val);
-    #endif
-    // uint64_t *reg;
-    // reg = &env->mstateen[csrno - CSR_MSTATEEN0];
-    // *reg = (*reg & ~wr_mask) | (new_val & wr_mask);
-
-    //TODO read registers
-
-    //TODO fill tlb
+    
     target_ulong tlb_size = TARGET_PAGE_SIZE;
     
     CPUState *cpu = env_cpu(env);
     vaddr addr = env->tlbh;
-    hwaddr paddr = new_val; //TODO get from regs
-    //int mmu_idx = riscv_env_mmu_index(env, true);
-    int mmu_idx = addr & (tlb_size - 1);
-    // if(!addr) {
-        // return RISCV_EXCP_ILLEGAL_INST; //TODO get from regs
-    // }
-    int prot = 7; //TODO get from regs
+    hwaddr paddr = ((pte & ~(PTE_RESERVED)) >> 10) << 12;
 
-    tlb_set_page(cpu, addr & ~(tlb_size - 1), paddr & ~(tlb_size - 1), prot, mmu_idx, tlb_size);
+    //retrieve MMU id from faulting address LSBs
+    //MMU id was encoded into the faulting address by trigger_tlb_exception() routine
+    //this would not be necessary on real hardware as the mmu to use would be obvious from the CPU the code is run on
+    int mmu_idx = addr & (tlb_size - 1);
+
+    int prot = pte & (PTE_R | PTE_W | PTE_X | PTE_V );
+
+    addr &= ~(tlb_size - 1);
+    paddr &= ~(tlb_size - 1);
+    printf("tlb_set_page: cpu=0x%lx, addr=0x%lx, paddr=0x%lx, prot=0x%x, mmu_idx=0x%x, tlb_size=0x%lx\n",
+                (unsigned long int)cpu, addr, paddr, prot, mmu_idx, tlb_size);
+    tlb_set_page(cpu, addr, paddr, prot, mmu_idx, tlb_size);
+    
+    //reset registers
     env->tlbh = 0;
     env->tlbl = 0;
 
-
-
-    //TODO print entire tlb state
-    
     return RISCV_EXCP_NONE;
 }
 
