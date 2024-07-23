@@ -535,7 +535,7 @@ G_NORETURN void  riscv_cpu_do_unaligned_access(CPUState *cs, vaddr addr,
 /// @param probe 
 /// @param retaddr 
 /// @return 
-bool riscv_cpu_tlb_fill_switch(CPUState *cs, vaddr address, int size,
+bool my_riscv_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
                         MMUAccessType access_type, int mmu_idx,
                         bool probe, uintptr_t retaddr);
 
@@ -546,7 +546,7 @@ bool riscv_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
 
 
 //Custom TLB fill function
-bool riscv_cpu_tlb_miss_exception(CPUState *cs, vaddr address, int size,
+void riscv_cpu_tlb_miss_exception(CPUState *cs, vaddr address, int size,
                         MMUAccessType access_type, int mmu_idx,
                         bool probe, uintptr_t retaddr);
 

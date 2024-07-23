@@ -1373,31 +1373,36 @@ bool address_in_trapframe(vaddr address) {
 }
 
 
-bool riscv_cpu_tlb_fill_switch(CPUState *cs, vaddr address, int size,
+bool my_riscv_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
                         MMUAccessType access_type, int mmu_idx,
                         bool probe, uintptr_t retaddr)
 {
     RISCVCPU *cpu = RISCV_CPU(cs);
     CPURISCVState *env = &cpu->env;
     int mode = mmuidx_priv(mmu_idx);
+    //TODO PMP?
     //TODO Use switch case from cpu_helper:850 in get_physical_address()
     int vm = get_field(env->satp, SATP64_MODE);
-    bool ret = false;
-    //TODO Remove hardcoded faulting address
-    //TODO this is used to let the rest of the system work as usual while I first try to implement 
-    //swtlbmisshandling for this specific address
-    if( !(vm == VM_1_10_MBARE || mode == PRV_M) && address == (uint64_t)0x84fff000) {
-        #ifdef PRINTLOGS
-        printf("using custom tlb miss handler for vaddr 0x%lx\n", address);
-        #endif
-        ret = riscv_cpu_tlb_miss_exception(cs,address,size,access_type, mmu_idx, probe, retaddr);
-    } else {
-        #ifdef PRINTLOGS
-        printf("using normal handler for vaddr 0x%lx\n", address);
-        #endif
-        ret =  riscv_cpu_tlb_fill(cs,address,size,access_type, mmu_idx, probe, retaddr);
+
+    //No address translation in m-mode
+    if(vm == VM_1_10_MBARE || mode == PRV_M) {
+        int tlb_size = 4096; //TODO Get from PMP?
+        hwaddr pa = address;
+        int prot = PAGE_READ | PAGE_WRITE | PAGE_EXEC;
+        //In the original riscv_cpu_tlb_fill identity mappings were also added to the tlb
+        //Does qemu go through the SWTLB for all addresses?
+        tlb_set_page(cs, address & ~(tlb_size - 1), pa & ~(tlb_size - 1),
+                     prot, mmu_idx, tlb_size);
+            
+        return true; //return false would indicate that no translation has happend
     }
-    return ret;
+    //When we are here, there was no entry for the given virtual address and the mapping is 
+    //not direct 
+    // -> Throw a tlb miss exception to be handled by the kernel/OS
+    //modhere TODO add CSRS for mor fine-grained control of the TLB and also one to switch this
+    //behavior on and off
+    riscv_cpu_tlb_miss_exception(cs,address,size,access_type, mmu_idx, probe, retaddr);
+    return true;
 }
 
 bool riscv_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
@@ -1518,6 +1523,7 @@ bool riscv_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
 
     if (ret == TRANSLATE_SUCCESS) {
         //modhere how to write a TLB entry
+        //Identity mappings are also added to the tlb?
         tlb_set_page(cs, address & ~(tlb_size - 1), pa & ~(tlb_size - 1),
                      prot, mmu_idx, tlb_size);
         return true;
@@ -1537,7 +1543,7 @@ bool riscv_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
 
 // TODO switch between this function and the normal "riscv_cpu_tlb_fill" using
 // csr
-bool riscv_cpu_tlb_miss_exception(CPUState *cs, vaddr address, int size,
+void riscv_cpu_tlb_miss_exception(CPUState *cs, vaddr address, int size,
                            MMUAccessType access_type, int mmu_idx, bool probe,
                            uintptr_t retaddr) {
     qemu_log_mask(CPU_LOG_MMU, "%s ad %" VADDR_PRIx " rw %d mmu_idx %d\n",
@@ -1559,7 +1565,6 @@ bool riscv_cpu_tlb_miss_exception(CPUState *cs, vaddr address, int size,
                         first_stage_error, two_stage_lookup,
                         two_stage_indirect_error, (uint8_t)mmu_idx);
     cpu_loop_exit_restore(cs, retaddr);
-    return true;
 }
 
 static target_ulong riscv_transformed_insn(CPURISCVState *env,
