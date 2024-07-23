@@ -261,7 +261,12 @@ typedef struct CPUTLBEntryFull {
 
         //modhere save physical address for debugging purposes
         //TODO may not be written when using tlb fast path -> how to disable?
-        vaddr vaddr;
+        struct {
+            vaddr vaddr;
+            bool direct; //true if the address is direct mapped and not virtually
+        } debug;
+        //You could also just check if the physical and the virtual address
+        //are the same, but they might be the same by coincidence or explicitly
     } extra;
 } CPUTLBEntryFull;
 

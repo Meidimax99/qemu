@@ -1392,7 +1392,7 @@ bool my_riscv_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
         //In the original riscv_cpu_tlb_fill identity mappings were also added to the tlb
         //Does qemu go through the SWTLB for all addresses?
         tlb_set_page(cs, address & ~(tlb_size - 1), pa & ~(tlb_size - 1),
-                     prot, mmu_idx, tlb_size);
+                     prot, mmu_idx, tlb_size, true);
             
         return true; //return false would indicate that no translation has happend
     }
@@ -1420,6 +1420,7 @@ bool riscv_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
     bool two_stage_indirect_error = false;
     int ret = TRANSLATE_FAIL;
     int mode = mmuidx_priv(mmu_idx);
+    int direct = false;
     /* default TLB page size */
     target_ulong tlb_size = TARGET_PAGE_SIZE;
 
@@ -1514,6 +1515,7 @@ bool riscv_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
                           __func__, pa, ret, prot_pmp, tlb_size);
 
             prot &= prot_pmp;
+            direct = true;
         }
     }
 
@@ -1525,7 +1527,7 @@ bool riscv_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
         //modhere how to write a TLB entry
         //Identity mappings are also added to the tlb?
         tlb_set_page(cs, address & ~(tlb_size - 1), pa & ~(tlb_size - 1),
-                     prot, mmu_idx, tlb_size);
+                     prot, mmu_idx, tlb_size, direct);
         return true;
     } else if (probe) {
         return false;

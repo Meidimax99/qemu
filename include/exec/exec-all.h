@@ -242,7 +242,7 @@ void tlb_flush_range_by_mmuidx_all_cpus_synced(CPUState *cpu,
  * used by tlb_flush_page.
  */
 void tlb_set_page_full(CPUState *cpu, int mmu_idx, vaddr addr,
-                       CPUTLBEntryFull *full);
+                       CPUTLBEntryFull *full, bool direct);
 
 /**
  * tlb_set_page_with_attrs:
@@ -268,7 +268,7 @@ void tlb_set_page_full(CPUState *cpu, int mmu_idx, vaddr addr,
  */
 void tlb_set_page_with_attrs(CPUState *cpu, vaddr addr,
                              hwaddr paddr, MemTxAttrs attrs,
-                             int prot, int mmu_idx, vaddr size);
+                             int prot, int mmu_idx, vaddr size, bool direct);
 /* tlb_set_page:
  *
  * This function is equivalent to calling tlb_set_page_with_attrs()
@@ -277,7 +277,7 @@ void tlb_set_page_with_attrs(CPUState *cpu, vaddr addr,
  */
 void tlb_set_page(CPUState *cpu, vaddr addr,
                   hwaddr paddr, int prot,
-                  int mmu_idx, vaddr size);
+                  int mmu_idx, vaddr size, bool direct);
 #else
 static inline void tlb_init(CPUState *cpu)
 {

@@ -4372,7 +4372,7 @@ static RISCVException write_tlbl(CPURISCVState *env, int csrno, target_ulong pte
     hwaddr paddr = ((pte & ~(PTE_RESERVED)) >> 10) << 12;
 
     //retrieve MMU id from faulting address LSBs
-    //MMU id was encoded into the faulting address by trigger_tlb_exception() routine
+    //MMU id was encoded into the faulting address by raise_tlb_exception() routine
     //this would not be necessary on real hardware as the mmu to use would be obvious from the CPU the code is run on
     int mmu_idx = addr & (tlb_size - 1);
 
@@ -4382,7 +4382,7 @@ static RISCVException write_tlbl(CPURISCVState *env, int csrno, target_ulong pte
     paddr &= ~(tlb_size - 1);
     //printf("tlb_set_page: cpu=0x%lx, addr=0x%lx, paddr=0x%lx, prot=0x%x, mmu_idx=0x%x, tlb_size=0x%lx\n",
                 //(unsigned long int)cpu, addr, paddr, prot, mmu_idx, tlb_size);
-    tlb_set_page(cpu, addr, paddr, prot, mmu_idx, tlb_size);
+    tlb_set_page(cpu, addr, paddr, prot, mmu_idx, tlb_size, false);
     
     //reset registers
     env->tlbh = 0;

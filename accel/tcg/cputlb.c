@@ -1112,7 +1112,7 @@ static inline void tlb_set_compare(CPUTLBEntryFull *full, CPUTLBEntry *ent,
  * critical section.
  */
 void    tlb_set_page_full(CPUState *cpu, int mmu_idx,
-                       vaddr addr, CPUTLBEntryFull *full)
+                       vaddr addr, CPUTLBEntryFull *full, bool direct)
 {
     CPUTLB *tlb = &cpu->neg.tlb;
     CPUTLBDesc *desc = &tlb->d[mmu_idx];
@@ -1299,7 +1299,7 @@ static void print_tlb_entry(CPUTLBEntryFull *entry)
 
 void tlb_set_page_with_attrs(CPUState *cpu, vaddr addr,
                              hwaddr paddr, MemTxAttrs attrs, int prot,
-                             int mmu_idx, uint64_t size)
+                             int mmu_idx, uint64_t size, bool direct)
 {
     CPUTLBEntryFull full = {
         .phys_addr = paddr,
@@ -1308,9 +1308,10 @@ void tlb_set_page_with_attrs(CPUState *cpu, vaddr addr,
         .lg_page_size = ctz64(size)
     };
     //modhere adding extra field for debugging purposes
-    full.extra.vaddr = addr;
+    full.extra.debug.vaddr = addr;
+    full.extra.debug.direct = direct;
     assert(is_power_of_2(size));
-    tlb_set_page_full(cpu, mmu_idx, addr, &full);
+    tlb_set_page_full(cpu, mmu_idx, addr, &full, direct);
     #ifdef PRINTLOGS
     printf("New entry:\n");
     print_tlb_entry(&full);
@@ -1321,10 +1322,10 @@ void tlb_set_page_with_attrs(CPUState *cpu, vaddr addr,
 //Gets even called before virtual memory is active??
 void tlb_set_page(CPUState *cpu, vaddr addr,
                   hwaddr paddr, int prot,
-                  int mmu_idx, uint64_t size)
+                  int mmu_idx, uint64_t size, bool direct)
 {
     tlb_set_page_with_attrs(cpu, addr, paddr, MEMTXATTRS_UNSPECIFIED,
-                            prot, mmu_idx, size);
+                            prot, mmu_idx, size, direct);
 }
 
 /*

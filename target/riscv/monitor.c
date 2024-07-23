@@ -23,6 +23,8 @@
 #include "cpu_bits.h"
 #include "monitor/monitor.h"
 #include "monitor/hmp-target.h"
+#include "qapi/qmp/qdict.h"
+
 
 #ifdef TARGET_RISCV64
 #define PTE_HEADER_FIELDS       "vaddr            paddr            "\
@@ -241,12 +243,14 @@ void hmp_info_mem(Monitor *mon, const QDict *qdict)
 
 
 
-static void print_tlb_entry(Monitor *mon, CPUTLBEntryFull *entry, size_t index)
+static void print_tlb_entry(Monitor *mon, CPUTLBEntryFull *entry, size_t index, bool all)
 {
-    if(entry->phys_addr || entry->extra.vaddr) {
+
+    bool printentry = (all || !(entry->extra.debug.direct>0)) && (entry->phys_addr || entry->extra.debug.vaddr);
+    if(printentry) {
         monitor_printf(mon,  "%ld: 0x%016lx: 0x%016lx" 
-                      " %c%c%c%c%c%c%c%c\n", index,
-                      entry->extra.vaddr,
+                      " %c%c%c%c%c%c%c%c - %c\n", index,
+                      entry->extra.debug.vaddr,
                       entry->phys_addr,
                       entry->prot & 0x80 ? 'D' : '-',
                       entry->prot & 0x40 ? 'A' : '-',
@@ -255,22 +259,25 @@ static void print_tlb_entry(Monitor *mon, CPUTLBEntryFull *entry, size_t index)
                       entry->prot & 0x08 ? 'X' : '-',
                       entry->prot & 0x04 ? 'W' : '-',
                       entry->prot & 0x02 ? 'R' : '-',
-                      entry->prot & 0x01 ? 'V' : '-');
+                      entry->prot & 0x01 ? 'V' : '-',
+                      entry->extra.debug.direct ? 'D' : ' ' );
 
     }
 }
 
-static void print_tlb_entries(Monitor *mon, CPUState *cpu) {
+static void print_tlb_entries(Monitor *mon, CPUState *cpu, bool all) {
 
-    size_t cpu_index = monitor_get_cpu_index(mon);
-    CPUTLBDesc *desc = &cpu->neg.tlb.d[cpu_index];
-    CPUTLBDescFast *fast = &cpu->neg.tlb.f[cpu_index];
-    size_t n_entries = ( fast->mask >> CPU_TLB_ENTRY_BITS ) +1;
-    CPUTLBEntryFull *arr = desc->fulltlb;
-    monitor_printf(mon, "mmu_idx = %ld\n", cpu_index);
-    for (size_t j = 0; j < n_entries; j++)
+    for (size_t i = 0; i < NB_MMU_MODES; i++)
     {
-        print_tlb_entry(mon, &arr[j], j);
+        CPUTLBDesc *desc = &cpu->neg.tlb.d[i];
+        CPUTLBDescFast *fast = &cpu->neg.tlb.f[i];
+        size_t n_entries = ( fast->mask >> CPU_TLB_ENTRY_BITS ) +1;
+        CPUTLBEntryFull *arr = desc->fulltlb;
+        monitor_printf(mon, "mmu_idx = %ld\n", i);
+        for (size_t j = 0; j < n_entries; j++)
+        {
+            print_tlb_entry(mon, &arr[j], j, all);
+        }
     }
     
 }
@@ -278,6 +285,8 @@ static void print_tlb_entries(Monitor *mon, CPUState *cpu) {
 
 void hmp_info_tlb(Monitor *mon, const QDict *qdict)
 {
+    bool all = qdict_get_try_bool(qdict, "cpustate_all", false);
+
     CPUArchState *env1 = mon_get_cpu_env(mon);
 
     if (!env1) {
@@ -287,6 +296,7 @@ void hmp_info_tlb(Monitor *mon, const QDict *qdict)
 
     CPUState *cpu = mon_get_cpu(mon);
 
-    print_tlb_entries(mon, cpu);
+    print_tlb_entries(mon, cpu, all);
+   //monitor_printf(mon, "all: %d\n", all);
 
 }

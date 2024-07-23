@@ -212,8 +212,8 @@ ERST
     defined(TARGET_PPC) || defined(TARGET_XTENSA) || defined(TARGET_M68K) ||  defined(TARGET_RISCV)
     {
         .name       = "tlb",
-        .args_type  = "",
-        .params     = "",
+        .args_type  = "cpustate_all:-a",
+        .params     = "[-a]",
         .help       = "show virtual to physical memory mappings",
         .cmd        = hmp_info_tlb,
     },
